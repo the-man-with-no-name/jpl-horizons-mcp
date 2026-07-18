@@ -3,15 +3,34 @@ from mcp.server.fastmcp import FastMCP
 from typing import Any, Optional, Tuple
 from enum import StrEnum, auto
 from dataclasses import dataclass
+from datetime import datetime
 
-### HORIZONS API FOR LOCATIONS
-
-JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
+### INTERNAL UTILITIES
 
 class UpperStrEnum(StrEnum):
     @staticmethod
     def _generate_next_value_(name, start, count, last_values):
         return name.upper()
+    
+class BinaryResponse(UpperStrEnum):
+    YES = auto()
+    NO = auto()
+    
+def format_to_custom_datetime(dt_obj: datetime) -> str:
+    # %Y = Year, %b = Abbreviated month name (e.g., Jul), %d = Day
+    # %H = Hour (24h), %M = Minute, %S = Second, %f = Microsecond
+    base_str = dt_obj.strftime("%Y-%b-%d %H:%M:%S.%f")
+    # Slice off the last 3 digits of microseconds to enforce milliseconds (.fff)
+    return base_str[:-3]
+
+def format_bool(val: bool) -> BinaryResponse:
+    if val:
+        return BinaryResponse.YES
+    return BinaryResponse.NO
+
+### HORIZONS API FOR LOCATIONS
+
+JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 
 class Ephemeris(UpperStrEnum):
     OBSERVER = auto()
@@ -32,6 +51,36 @@ class CaTableTypeEnum(UpperStrEnum):
     STANDARD = auto()
     EXTENDED = auto()
 
+class TimePrecision(UpperStrEnum):
+    MINUTES = auto()
+    SECONDS = auto()
+    FRACSEC = auto()
+
+class ReferenceFrame(UpperStrEnum):
+    ICRF = auto()
+    B1950 = auto()
+
+class CalendarFormat(UpperStrEnum):
+    CAL = auto()
+    JD = auto()
+    BOTH = auto()
+
+class CalendarType(UpperStrEnum):
+    MIXED = auto()
+    GREGORIAN = auto()
+
+class AngleFormat(UpperStrEnum):
+    HMS = auto()
+    DEG = auto()
+
+class RefractionCorrection(UpperStrEnum):
+    AIRLESS = auto()
+    REFRACTED = auto()
+
+class DistanceUnits(UpperStrEnum):
+    AU = auto()
+    KM = auto()
+
 class EphemDataBase:
     pass
 
@@ -40,8 +89,30 @@ class Observer(EphemDataBase):
     Center: CenterEnum
     CoordType: CoordTypeEnum
     SiteCoord: Tuple[float, float, float]
-    StartTime: str
-    StopTime: str
+    StartTime: datetime
+    StopTime: datetime
+    #StepSize:
+    TimeDigits: TimePrecision
+    #TimeZone: str
+    #TList
+    #TListType
+    #Quantities:
+    RefSystem: ReferenceFrame
+    CalFormat: CalendarFormat
+    CalType: CalendarType
+    AngFormat: AngleFormat
+    Apparent: RefractionCorrection
+    RangeUnits: DistanceUnits
+    SuppressRangeRate: bool
+    ElevCut: int = -90
+    SkipDaylt: bool = False
+    #SolarElong: str
+    Airmass: float = 38.0
+    LhaCutoff: float = 0.0
+    AngRateCutoff: float = 0.0
+    ExtraPrec: bool = False
+    CsvFormat: bool = False
+    RTSOnly: bool = False
 
 @dataclass
 class Vectors(EphemDataBase):
@@ -226,3 +297,103 @@ async def lookup_object_id(
         group: Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only
     """
     return _make_lookup_request(JPL_HORIZONS_LOOKUP_BASE_URL, search_string, group)
+
+
+### FIREBALL TO ACCESS METEOR AND BOLIDE EVENTS
+
+JPL_FIREBALL_BASE_URL = "https://ssd-api.jpl.nasa.gov/fireball.api"
+
+class FireballSortComponent(StrEnum):
+    DATE = auto()
+    ENERGY = auto()
+    #IMPACTENERGY = auto()
+    VEL = auto()
+    ALT = auto()
+
+class SortOrder(StrEnum):
+    ASCENDING = auto()
+    DESCENDING = auto()
+
+@mcp.tool()
+async def fireball_event_lookup(
+    date_min: Optional[str], # enforce datetime object better here
+    date_max: Optional[str], # ...and here
+    energy_min: Optional[float],
+    energy_max: Optional[float],
+    impact_energy_min: Optional[float],
+    impact_energy_max: Optional[float],
+    altitude_min: Optional[float],
+    altitude_max: Optional[float],
+    require_location: Optional[bool],
+    require_altitude: Optional[bool],
+    require_velocity_component: Optional[bool],
+    velocity_component: Optional[bool],
+    sort_component: Optional[FireballSortComponent],
+    sort_order: Optional[SortOrder],
+    limit: Optional[int],
+) -> dict[str, Any] | None:
+    """
+    The fireball data API provides a method of requesting specific records 
+    from the available data-set. Every successful query will return content 
+    representing one or more fireball data records.
+
+    Args:
+        date_min: exclude data earlier than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss
+        date_max: exclude data later than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss
+        energy_min: exclude data with total-radiated-energy less than this positive value in joules * 10^10 (e.g., 0.3 = 0.3 * 10^10 joules)
+        energy_max: exclude data with total-radiated-energy greater than this (see energy_min)
+        impact_energy_min: exclude data with estimated impact energy less than this positive value in kilotons (kt) (e.g., 0.08 kt)
+        impact_energy_max: exclude data with total-radiated-energy greater than this (see impact_energy_min)
+        altitude_min: exclude data from objects with an altitude less than this (e.g., 22 meaning objects smaller than this)
+        altitude_max: exclude data from objects with an altitude greater than this (e.g., 17.75 meaning objects larger than this)
+        require_location: location (latitude and longitude) required; when set true, exclude data without a location
+        require_altitude: altitude required; when set true, exclude data without an altitude
+        require_velocity_component: Entry velocity components required; when set true, exclude data without entry velocity components
+        velocity_component: include entry velocity components
+        sort_component: which field to sort the resulting data on; “date”, “energy”, “impact-e”, “vel”, or “alt” 
+        sort_order: sort the data in ascending or descending order
+        limit: limit data to the first N results (where N is the specified number and must be an integer value greater than zero)
+    """
+
+    # Build the query parameters
+    query_params = {}
+
+    if date_min is not None:
+        query_params["date-min"] = date_min
+    if date_max is not None:
+        query_params["date-max"] = date_max
+    if energy_min is not None:
+        query_params["energy-min"] = energy_min
+    if energy_max is not None:
+        query_params["energy-max"] = energy_max
+    if impact_energy_min is not None:
+        query_params["impact-energy-min"] = impact_energy_min
+    if impact_energy_max is not None:
+        query_params["impact-energy-max"] = impact_energy_max
+    if altitude_min is not None:
+        query_params["alt-min"] = altitude_min
+    if altitude_max is not None:
+        query_params["alt-max"] = altitude_max
+    if require_location is not None:
+        query_params["req-loc"] = str(format_bool(require_location))
+    if require_altitude is not None:
+        query_params["req-alt"] = str(format_bool(require_altitude))
+    if require_velocity_component is not None:
+        query_params["req-vel-comp"] = str(format_bool(require_velocity_component))
+    if velocity_component is not None:
+        query_params["vel-comp"] = str(format_bool(velocity_component))
+    if sort_component is not None:
+        query_params["sort"] = str(sort_component)
+    if sort_order is not None:
+        if sort_order == SortOrder.DESCENDING:
+            query_params["sort"] = "-" + query_params["sort"]
+    if limit is not None:
+        query_params["limit"] = limit
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(JPL_FIREBALL_BASE_URL, params=query_params)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return None
