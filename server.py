@@ -5,16 +5,19 @@ from enum import StrEnum, auto
 from dataclasses import dataclass
 from datetime import datetime
 
-### @TODO: For some reason, nested calls to make the request are failing. Put request logic within tool function.
+"""
+@TODO: For some reason, nested calls to make the request are failing. 
+    Put request logic within tool function.
+    Fixed for:
+    x   - Horizons API
+    ✓   - Horizons Lookup API
+    ✓   - Fireball API
+"""
+
 
 ### INTERNAL UTILITIES
-
-class UpperStrEnum(StrEnum):
-    @staticmethod
-    def _generate_next_value_(name, start, count, last_values):
-        return name.upper()
     
-class BinaryResponse(UpperStrEnum):
+class BinaryResponse(StrEnum):
     YES = auto()
     NO = auto()
     
@@ -34,52 +37,52 @@ def format_bool(val: bool) -> BinaryResponse:
 
 JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 
-class Ephemeris(UpperStrEnum):
+class Ephemeris(StrEnum):
     OBSERVER = auto()
     VECTORS = auto()
     ELEMENTS = auto()
     SPK = auto()
     APPROACH = auto()
 
-class CenterEnum(UpperStrEnum):
+class CenterEnum(StrEnum):
     COORD = auto()
     GEO = auto()
 
-class CoordTypeEnum(UpperStrEnum):
+class CoordTypeEnum(StrEnum):
     GEODETIC = auto()
     CYLINDRICAL = auto()
 
-class CaTableTypeEnum(UpperStrEnum):
+class CaTableTypeEnum(StrEnum):
     STANDARD = auto()
     EXTENDED = auto()
 
-class TimePrecision(UpperStrEnum):
+class TimePrecision(StrEnum):
     MINUTES = auto()
     SECONDS = auto()
     FRACSEC = auto()
 
-class ReferenceFrame(UpperStrEnum):
+class ReferenceFrame(StrEnum):
     ICRF = auto()
     B1950 = auto()
 
-class CalendarFormat(UpperStrEnum):
+class CalendarFormat(StrEnum):
     CAL = auto()
     JD = auto()
     BOTH = auto()
 
-class CalendarType(UpperStrEnum):
+class CalendarType(StrEnum):
     MIXED = auto()
     GREGORIAN = auto()
 
-class AngleFormat(UpperStrEnum):
+class AngleFormat(StrEnum):
     HMS = auto()
     DEG = auto()
 
-class RefractionCorrection(UpperStrEnum):
+class RefractionCorrection(StrEnum):
     AIRLESS = auto()
     REFRACTED = auto()
 
-class DistanceUnits(UpperStrEnum):
+class DistanceUnits(StrEnum):
     AU = auto()
     KM = auto()
 
@@ -184,7 +187,7 @@ async def observer_request(
     """
     Description here
     """
-    return _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.OBSERVER, observer_data)
+    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.OBSERVER, observer_data)
 
 @mcp.tool()
 async def vectors_request(
@@ -196,7 +199,7 @@ async def vectors_request(
     """
     Description here
     """
-    return _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.VECTORS, vectors_data)
+    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.VECTORS, vectors_data)
 
 @mcp.tool()
 async def elements_request(
@@ -208,7 +211,7 @@ async def elements_request(
     """
     Description here
     """
-    return _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.ELEMENTS, elements_data)
+    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.ELEMENTS, elements_data)
 
 @mcp.tool()
 async def spk_request(
@@ -232,7 +235,7 @@ async def approach_request(
     """
     Description here
     """
-    return _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.APPROACH, approach_data)
+    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.APPROACH, approach_data)
 
 ### LOOKUP API TO GET THE ID FOR DIFFERENT CELESTIAL BODIES, SPACECRAFT, ETC.
 
@@ -246,43 +249,6 @@ class CelestialObjectGroup(StrEnum):
     SCT = auto()
     MB = auto()
     SB = auto()
-
-async def _make_lookup_request(
-    url: str,
-    search_string: str,
-    group: Optional[CelestialObjectGroup],
-) -> dict[str, Any] | None:
-    """
-    Process a user-specified name, designation, SPK-ID, IAU number, 
-    MPC packed designation, or other historical alias, and return 
-    in a standardized format its primary synonyms and all aliases 
-    recognized by JPL's Horizons system as being linked to publicly 
-    available trajectory data.
-
-    Arguments:
-        url: base api url
-        sstr: search string
-        group: what type of object to restrict the search to
-    """
-    
-    # Build the query parameters
-    query_params = {
-        "format": "json",
-        "sstr": search_string,
-    }
-
-    if group is not None:
-        query_params["group"] = group
-
-    async with httpx.AsyncClient() as client:
-        try:
-            request = await client.build_request("GET", url, params=query_params)
-            print(request.url)
-            response = await client.get(url, params=query_params)
-            response.raise_for_status()
-            return response.json()
-        except Exception:
-            return None
 
 @mcp.tool()
 async def lookup_object_id(
