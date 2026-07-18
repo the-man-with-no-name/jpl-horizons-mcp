@@ -5,6 +5,8 @@ from enum import StrEnum, auto
 from dataclasses import dataclass
 from datetime import datetime
 
+### @TODO: For some reason, nested calls to make the request are failing. Put request logic within tool function.
+
 ### INTERNAL UTILITIES
 
 class UpperStrEnum(StrEnum):
@@ -234,7 +236,7 @@ async def approach_request(
 
 ### LOOKUP API TO GET THE ID FOR DIFFERENT CELESTIAL BODIES, SPACECRAFT, ETC.
 
-JPL_HORIZONS_LOOKUP_BASE_URL = " https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
+JPL_HORIZONS_LOOKUP_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
 
 class CelestialObjectGroup(StrEnum):
     AST = auto()
@@ -274,6 +276,8 @@ async def _make_lookup_request(
 
     async with httpx.AsyncClient() as client:
         try:
+            request = await client.build_request("GET", url, params=query_params)
+            print(request.url)
             response = await client.get(url, params=query_params)
             response.raise_for_status()
             return response.json()
@@ -283,20 +287,36 @@ async def _make_lookup_request(
 @mcp.tool()
 async def lookup_object_id(
     search_string: str,
-    group: Optional[CelestialObjectGroup],
+    group: Optional[CelestialObjectGroup] = None,
 ) -> dict[str, Any] | None:
     """
     Process a user-specified name, designation, SPK-ID, IAU number, 
     MPC packed designation, or other historical alias, and return 
     in a standardized format its primary synonyms and all aliases 
     recognized by JPL's Horizons system as being linked to publicly 
-    available trajectory data.
+    available trajectory data. Boo
 
     Arguments:
         search_string: Search string containing object name, designation, SPK-ID, IAU number, or MPC packed-format designation
         group: Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only
     """
-    return _make_lookup_request(JPL_HORIZONS_LOOKUP_BASE_URL, search_string, group)
+
+    # Build the query parameters
+    query_params = {
+        "format": "json",
+        "sstr": search_string,
+    }
+
+    if group is not None:
+        query_params["group"] = group
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(JPL_HORIZONS_LOOKUP_BASE_URL, params=query_params)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return None
 
 
 ### FIREBALL TO ACCESS METEOR AND BOLIDE EVENTS
@@ -316,21 +336,21 @@ class SortOrder(StrEnum):
 
 @mcp.tool()
 async def fireball_event_lookup(
-    date_min: Optional[str], # enforce datetime object better here
-    date_max: Optional[str], # ...and here
-    energy_min: Optional[float],
-    energy_max: Optional[float],
-    impact_energy_min: Optional[float],
-    impact_energy_max: Optional[float],
-    altitude_min: Optional[float],
-    altitude_max: Optional[float],
-    require_location: Optional[bool],
-    require_altitude: Optional[bool],
-    require_velocity_component: Optional[bool],
-    velocity_component: Optional[bool],
-    sort_component: Optional[FireballSortComponent],
-    sort_order: Optional[SortOrder],
-    limit: Optional[int],
+    date_min: Optional[str] = None, # enforce datetime object better here
+    date_max: Optional[str] = None, # ...and here
+    energy_min: Optional[float] = None,
+    energy_max: Optional[float] = None,
+    impact_energy_min: Optional[float] = None,
+    impact_energy_max: Optional[float] = None,
+    altitude_min: Optional[float] = None,
+    altitude_max: Optional[float] = None,
+    require_location: Optional[bool] = None,
+    require_altitude: Optional[bool] = None,
+    require_velocity_component: Optional[bool] = None,
+    velocity_component: Optional[bool] = None,
+    sort_component: Optional[FireballSortComponent] = None,
+    sort_order: Optional[SortOrder] = None,
+    limit: Optional[int] = None,
 ) -> dict[str, Any] | None:
     """
     The fireball data API provides a method of requesting specific records 
