@@ -13,10 +13,12 @@ from datetime import datetime
     x       - Observer
     x       - Vectors
     x       - Elements
-    x       - Spk
+    ✓       - Spk
     ✓       - Approach
     ✓   - Horizons Lookup API
     ✓   - Fireball API
+
+@TODO: Fix handling of datetime params to enforce ISO 8601
 """
 
 
@@ -221,14 +223,39 @@ async def elements_request(
 @mcp.tool()
 async def spk_request(
     command: str,
-    obj_data: bool,
-    make_ephem: bool,
-    spk_data: Spk
+    obj_data: Optional[bool] = True,
+    make_ephem: Optional[bool] = True,
+    start_time: Optional[datetime] = None,
+    stop_time: Optional[datetime] = None,
 ) -> dict[str, Any] | None:
     """
     Description here
     """
-    return _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.SPK, spk_data)
+
+    # Build the query parameters
+    query_params = {
+        "format": "json",
+        "COMMAND": "'" + command + "'",
+        "EPHEM_TYPE": "'" + Ephemeris.SPK.name.upper() + "'"
+    }
+
+    # Optional parameters
+    if obj_data is not None:
+        query_params["OBJ_DATA"] = "'YES'" if obj_data else "'NO'"
+    if make_ephem is not None:
+        query_params["MAKE_EPHEM"] = "'YES'" if make_ephem else "'NO'"
+    if start_time is not None:
+        query_params["START_TIME"] = f"'{format_to_custom_datetime(start_time)}'"
+    if stop_time is not None:
+        query_params["STOP_TIME"] = f"'{format_to_custom_datetime(stop_time)}'"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return None
 
 @mcp.tool()
 async def close_approach_request(
