@@ -14,7 +14,7 @@ from datetime import datetime
     x       - Vectors
     x       - Elements
     x       - Spk
-    x       - Approach
+    ✓       - Approach
     ✓   - Horizons Lookup API
     ✓   - Fireball API
 """
@@ -241,7 +241,11 @@ async def close_approach_request(
     CalimPl: Optional[Tuple[float, float, float, float, float, float, float, float, float, float]] = (0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 1.0, 1.0, 0.1, 0.003),
 ) -> dict[str, Any] | None:
     """
-    
+    Generate a discrete list of closest-encounter events. 
+    Instead of showing where an object is every hour or day, 
+    it filters the data to show only the specific moments an 
+    asteroid or comet flies past a planet or major moon.
+
     Args:
         command: target search, selection, or enter user-input object mode
         obj_data: toggles return of object summary data
