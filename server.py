@@ -9,7 +9,12 @@ from datetime import datetime
 @TODO: For some reason, nested calls to make the request are failing. 
     Put request logic within tool function.
     Fixed for:
-    x   - Horizons API
+    x   - Horizons API  
+    x       - Observer
+    x       - Vectors
+    x       - Elements
+    x       - Spk
+    x       - Approach
     ✓   - Horizons Lookup API
     ✓   - Fireball API
 """
@@ -226,16 +231,56 @@ async def spk_request(
     return _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.SPK, spk_data)
 
 @mcp.tool()
-async def approach_request(
+async def close_approach_request(
     command: str,
-    obj_data: bool,
-    make_ephem: bool,
-    approach_data: Approach
+    obj_data: Optional[bool] = True,
+    make_ephem: Optional[bool] = True,
+    CaTableType: Optional[CaTableTypeEnum] = CaTableTypeEnum.STANDARD,
+    Tca3sgLimit: Optional[int] = 14400,
+    CalimSb: Optional[float] = 0.05,
+    CalimPl: Optional[Tuple[float, float, float, float, float, float, float, float, float, float]] = (0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 1.0, 1.0, 0.1, 0.003),
 ) -> dict[str, Any] | None:
     """
-    Description here
+    
+    Args:
+        command: target search, selection, or enter user-input object mode
+        obj_data: toggles return of object summary data
+        make_ephem: toggles generation of ephemeris, if possible
+        CaTableType: Extended close-approach tables include Julian Day numbers. B-plane information is also output if there is a covariance for the object stored in the system database or specified with user-input elements.
+        Tacs3sgLimit: maximum computed 3-sigma uncertainty in time of Earth close-approach
+        CalimSb: sets the spherical radius within which the nominal target must pass one of the perturbing asteroids (Ceres, Pallas, Vesta, etc.) to activate close-approach flagging
+        CalimPl: sets the spherical radius within which the nominal target must pass one of the planets (or the Moon) to activate close-approach flagging, in the order: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto, and Moon
     """
-    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.APPROACH, approach_data)
+    
+    # Build the query parameters
+    query_params = {
+        "format": "json",
+        "COMMAND": "'" + command + "'",
+        "EPHEM_TYPE": "'" + Ephemeris.APPROACH.name.upper() + "'"
+    }
+
+    # Optional parameters
+    if obj_data is not None:
+        query_params["OBJ_DATA"] = "'YES'" if obj_data else "'NO'"
+    if make_ephem is not None:
+        query_params["MAKE_EPHEM"] = "'YES'" if make_ephem else "'NO'"
+    if CaTableType is not None:
+        query_params["CA_TABLE_TYPE"] = f"'{CaTableType.name.upper()}'"
+    if Tca3sgLimit is not None:
+        query_params["TCA3SG_LIMIT"] = f"'{Tca3sgLimit}'"
+    if CalimSb is not None:
+        query_params["CALIM_SB"] = f"'{CalimSb}'"
+    if CalimPl is not None:
+        AsStr = ",".join(map(str, CalimPl))
+        query_params["CALIM_PL"] = f"'{AsStr}'"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return None
 
 ### LOOKUP API TO GET THE ID FOR DIFFERENT CELESTIAL BODIES, SPACECRAFT, ETC.
 
@@ -262,7 +307,7 @@ async def lookup_object_id(
     recognized by JPL's Horizons system as being linked to publicly 
     available trajectory data. Boo
 
-    Arguments:
+    Args:
         search_string: Search string containing object name, designation, SPK-ID, IAU number, or MPC packed-format designation
         group: Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only
     """
