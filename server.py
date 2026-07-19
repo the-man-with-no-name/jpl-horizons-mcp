@@ -437,13 +437,13 @@ async def fireball_event_lookup(
     if altitude_max is not None:
         query_params["alt-max"] = altitude_max
     if require_location is not None:
-        query_params["req-loc"] = str(format_bool(require_location))
+        query_params["req-loc"] = str(require_location).lower()
     if require_altitude is not None:
-        query_params["req-alt"] = str(format_bool(require_altitude))
+        query_params["req-alt"] = str(require_altitude).lower()
     if require_velocity_component is not None:
-        query_params["req-vel-comp"] = str(format_bool(require_velocity_component))
+        query_params["req-vel-comp"] = str(require_velocity_component).lower()
     if velocity_component is not None:
-        query_params["vel-comp"] = str(format_bool(velocity_component))
+        query_params["vel-comp"] = str(velocity_component).lower()
     if sort_component is not None:
         query_params["sort"] = str(sort_component)
     if sort_order is not None:
