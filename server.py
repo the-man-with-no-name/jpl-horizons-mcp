@@ -173,7 +173,7 @@ async def _make_request(
     
     # Build the query parameters
     query_params = {
-        format: "json",
+        "format": "json",
     }
 
     async with httpx.AsyncClient() as client:
@@ -211,14 +211,36 @@ async def vectors_request(
 @mcp.tool()
 async def elements_request(
     command: str,
-    obj_data: bool,
-    make_ephem: bool,
-    elements_data: Elements
+    obj_data: Optional[bool] = True,
+    make_ephem: Optional[bool] = True,
+    center: Optional[CenterEnum] = CenterEnum.GEO
 ) -> dict[str, Any] | None:
     """
     Description here
     """
-    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.ELEMENTS, elements_data)
+
+    # Build the query parameters
+    query_params = {
+        "format": "json",
+        "COMMAND": "'" + command + "'",
+        "EPHEM_TYPE": "'" + Ephemeris.ELEMENTS.name.upper() + "'"
+    }
+
+    # Optional parameters
+    if obj_data is not None:
+        query_params["OBJ_DATA"] = "'YES'" if obj_data else "'NO'"
+    if make_ephem is not None:
+        query_params["MAKE_EPHEM"] = "'YES'" if make_ephem else "'NO'"
+    if center is not None:
+        query_params["CENTER"] = f"'{center.name}'"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return None
 
 @mcp.tool()
 async def spk_request(
@@ -229,7 +251,15 @@ async def spk_request(
     stop_time: Optional[datetime] = None,
 ) -> dict[str, Any] | None:
     """
-    Description here
+    Download a time-continuous binary SPICE Kernel (SPK) file (.bsp) 
+    containing high-precision trajectory and orbit data for a specific solar system body.
+
+    Args:
+        command: target search, selection, or enter user-input object mode
+        obj_data: toggles return of object summary data
+        make_ephem: toggles generation of ephemeris, if possible
+        start_time: specifies ephemeris start time
+        stop_time: specifies ephemeris stop time
     """
 
     # Build the query parameters
