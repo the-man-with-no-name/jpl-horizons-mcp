@@ -1,5 +1,5 @@
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import Any, Optional, Tuple
 from enum import StrEnum, auto
 from dataclasses import dataclass
@@ -184,7 +184,7 @@ async def _make_request(
         except Exception:
             return None
 
-@mcp.tool()
+@mcp.tool
 async def observer_request(
     command: str,
     obj_data: bool,
@@ -196,7 +196,7 @@ async def observer_request(
     """
     return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.OBSERVER, observer_data)
 
-@mcp.tool()
+@mcp.tool
 async def vectors_request(
     command: str,
     obj_data: bool,
@@ -208,7 +208,7 @@ async def vectors_request(
     """
     return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.VECTORS, vectors_data)
 
-@mcp.tool()
+@mcp.tool
 async def elements_request(
     command: str,
     obj_data: Optional[bool] = True,
@@ -242,7 +242,7 @@ async def elements_request(
         except Exception:
             return None
 
-@mcp.tool()
+@mcp.tool
 async def spk_request(
     command: str,
     obj_data: Optional[bool] = True,
@@ -287,7 +287,7 @@ async def spk_request(
         except Exception:
             return None
 
-@mcp.tool()
+@mcp.tool
 async def close_approach_request(
     command: str,
     obj_data: Optional[bool] = True,
@@ -356,7 +356,7 @@ class CelestialObjectGroup(StrEnum):
     MB = auto()
     SB = auto()
 
-@mcp.tool()
+@mcp.tool
 async def lookup_object_id(
     search_string: str,
     group: Optional[CelestialObjectGroup] = None,
@@ -406,7 +406,7 @@ class SortOrder(StrEnum):
     ASCENDING = auto()
     DESCENDING = auto()
 
-@mcp.tool()
+@mcp.tool
 async def fireball_event_lookup(
     date_min: Optional[str] = None, # enforce datetime object better here
     date_max: Optional[str] = None, # ...and here
