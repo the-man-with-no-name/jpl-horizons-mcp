@@ -1,4 +1,5 @@
 import httpx
+import urllib.parse
 from fastmcp import FastMCP
 from typing import Any, Optional, Tuple, Protocol
 from enum import StrEnum, auto
@@ -32,6 +33,9 @@ class BinaryResponse(StrEnum):
 class Stringable(Protocol):
     def __str__(self) -> str:
         ...
+
+def format_escape_char_url(value) -> str:
+    return urllib.parse.quote(value)
     
 def format_to_custom_datetime(dt_obj: datetime) -> str:
     # %Y = Year, %b = Abbreviated month name (e.g., Jul), %d = Day
@@ -41,7 +45,10 @@ def format_to_custom_datetime(dt_obj: datetime) -> str:
     return base_str[:-3]
 
 def format_to_comma_sep_string(stringable_list) -> str:
-    return reduce(lambda x, y: x + y, map(lambda x: str(x), stringable_list))
+    return reduce(lambda x, y: x + "," + y, map(lambda x: str(x), stringable_list))
+
+def format_to_space_sep_string(stringable_list) -> str:
+    return reduce(lambda x, y: x + " " + y, map(lambda x: str(x), stringable_list))
 
 def format_to_single_quote_string(value) -> str:
     return f"'{value}'"
@@ -81,6 +88,11 @@ class TimeDigits(StrEnum):
     MINUTES = auto()
     SECONDS = auto()
     FRACSEC = auto()
+
+class TimeListType(StrEnum):
+    JD = auto()
+    MJD = auto()
+    CAL = auto()
 
 class ReferenceFrame(StrEnum):
     ICRF = auto()
@@ -237,10 +249,19 @@ async def elements_request(
     stop_time: Optional[datetime] = None,
     step_size: Optional[str] = '60 min',
     time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
+    time_zone: Optional[str] = None,
+    time_list: Optional[list[str]] = None,
+    time_list_type: Optional[TimeListType] = None,
+    ref_system: Optional[ReferenceFrame] = ReferenceFrame.ICRF,
+    cal_format: Optional[CalendarFormat] = CalendarFormat.CAL,
+    cal_type: Optional[CalendarType] = CalendarType.MIXED,
 ) -> dict[str, Any] | None:
     """
-    Outputs geometric orbital parameters (eccentricity, inclination). 
-    It describes the overall mathematical shape of the path, not an active position or visual viewing angle
+    Determine geometric orbital parameters (eccentricity, inclination) for the specified command. 
+    Geometric orbital parameters describe the overall mathematical shape of the path, 
+    not an active position or visual viewing angle.
+
+    Args:
     """
 
     # Build the query parameters
@@ -269,6 +290,18 @@ async def elements_request(
         query_params["STEP_SIZE"] = format_to_single_quote_string(step_size)
     if time_digits is not None:
         query_params["TIME_DIGITS"] = time_digits.name.upper()
+    if time_zone is not None:
+        query_params["TIME_ZONE"] = format_to_single_quote_string(time_zone)
+    if time_list is not None:
+        query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, time_list)))
+    if time_list_type is not None:
+        query_params["TLIST_TYPE"] = time_list_type.name.upper()
+    if ref_system is not None:
+        query_params["REF_SYSTEM"] = ref_system.name.upper()
+    if cal_format is not None:
+        query_params["CAL_FORMAT"] = cal_format.name.upper()
+    if cal_type is not None:
+        query_params["CAL_TYPE"] = cal_type.name.upper()
 
     async with httpx.AsyncClient() as client:
         try:
@@ -402,7 +435,7 @@ async def lookup_object_id(
     MPC packed designation, or other historical alias, and return 
     in a standardized format its primary synonyms and all aliases 
     recognized by JPL's Horizons system as being linked to publicly 
-    available trajectory data. Boo
+    available trajectory data.
 
     Args:
         search_string: Search string containing object name, designation, SPK-ID, IAU number, or MPC packed-format designation
