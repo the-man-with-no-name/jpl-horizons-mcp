@@ -1,9 +1,10 @@
 import httpx
 from fastmcp import FastMCP
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Protocol
 from enum import StrEnum, auto
 from dataclasses import dataclass
 from datetime import datetime
+from functools import reduce
 
 """
 @TODO: For some reason, nested calls to make the request are failing. 
@@ -27,6 +28,10 @@ from datetime import datetime
 class BinaryResponse(StrEnum):
     YES = auto()
     NO = auto()
+
+class Stringable(Protocol):
+    def __str__(self) -> str:
+        ...
     
 def format_to_custom_datetime(dt_obj: datetime) -> str:
     # %Y = Year, %b = Abbreviated month name (e.g., Jul), %d = Day
@@ -34,6 +39,15 @@ def format_to_custom_datetime(dt_obj: datetime) -> str:
     base_str = dt_obj.strftime("%Y-%b-%d %H:%M:%S.%f")
     # Slice off the last 3 digits of microseconds to enforce milliseconds (.fff)
     return base_str[:-3]
+
+def format_to_comma_sep_string(stringable_list) -> str:
+    return reduce(lambda x, y: x + y, map(lambda x: str(x), stringable_list))
+
+def format_to_single_quote_string(value) -> str:
+    return f"'{value}'"
+
+def format_to_yes_no(value: bool) -> str:
+    return "'YES'" if value else "'NO'"
 
 def format_bool(val: bool) -> BinaryResponse:
     if val:
@@ -63,7 +77,7 @@ class CaTableTypeEnum(StrEnum):
     STANDARD = auto()
     EXTENDED = auto()
 
-class TimePrecision(StrEnum):
+class TimeDigits(StrEnum):
     MINUTES = auto()
     SECONDS = auto()
     FRACSEC = auto()
@@ -104,7 +118,7 @@ class Observer(EphemDataBase):
     StartTime: datetime
     StopTime: datetime
     #StepSize:
-    TimeDigits: TimePrecision
+    TimeDigits: TimeDigits
     #TimeZone: str
     #TList
     #TListType
@@ -192,7 +206,9 @@ async def observer_request(
     observer_data: Observer
 ) -> dict[str, Any] | None:
     """
-    Description here
+    Outputs sky coordinates like Right Ascension, Declination, Azimuth, and Elevation. 
+    It tells you exactly where a telescope must point to see the object, accounting 
+    for factors like atmospheric refraction and Earth's rotation.
     """
     return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.OBSERVER, observer_data)
 
@@ -204,7 +220,8 @@ async def vectors_request(
     vectors_data: Vectors
 ) -> dict[str, Any] | None:
     """
-    Description here
+    Outputs raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz). 
+    It treats the solar system like a massive grid, ignoring how things look from the ground.
     """
     return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.VECTORS, vectors_data)
 
@@ -213,10 +230,17 @@ async def elements_request(
     command: str,
     obj_data: Optional[bool] = True,
     make_ephem: Optional[bool] = True,
-    center: Optional[CenterEnum] = CenterEnum.GEO
+    center: Optional[CenterEnum] = CenterEnum.GEO,
+    coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
+    site_coord: Optional[tuple[float,float,float]] = (0.0,0.0,0.0),
+    start_time: Optional[datetime] = None,
+    stop_time: Optional[datetime] = None,
+    step_size: Optional[str] = '60 min',
+    time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
 ) -> dict[str, Any] | None:
     """
-    Description here
+    Outputs geometric orbital parameters (eccentricity, inclination). 
+    It describes the overall mathematical shape of the path, not an active position or visual viewing angle
     """
 
     # Build the query parameters
@@ -228,11 +252,23 @@ async def elements_request(
 
     # Optional parameters
     if obj_data is not None:
-        query_params["OBJ_DATA"] = "'YES'" if obj_data else "'NO'"
+        query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
     if make_ephem is not None:
-        query_params["MAKE_EPHEM"] = "'YES'" if make_ephem else "'NO'"
+        query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
     if center is not None:
-        query_params["CENTER"] = f"'{center.name}'"
+        query_params["CENTER"] = format_to_single_quote_string(center.name)
+    if coord_type is not None:
+        query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
+    if site_coord is not None:
+        query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
+    if start_time is not None:
+        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
+    if stop_time is not None:
+        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
+    if step_size is not None:
+        query_params["STEP_SIZE"] = format_to_single_quote_string(step_size)
+    if time_digits is not None:
+        query_params["TIME_DIGITS"] = time_digits.name.upper()
 
     async with httpx.AsyncClient() as client:
         try:
