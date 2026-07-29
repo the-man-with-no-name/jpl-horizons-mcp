@@ -289,7 +289,7 @@ async def vectors_time_list(
     # step_size_unit: Optional[TimeStep] = None,
     # time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
     time_list: Optional[list[str]] = None,
-    time_list_type: Optional[TimeListType] = None,
+    #time_list_type: Optional[TimeListType] = None,
     # ref_system: Optional[ReferenceFrame] = ReferenceFrame.ICRF,
     # out_units: Optional[OutUnits] = OutUnits.KMS,
     # vec_table: Optional[VecTable] = VecTable.STATE_LIGHT_RANGE_RATE,
@@ -309,8 +309,7 @@ async def vectors_time_list(
         make_ephem: toggles generation of ephemeris, if possible
         center: selects coordinate origin (observing site), format as "site@body"
         coord_type: selects type of user coordinates
-        time_list: list up to 10,000 discrete output times, either Julian Day numbers (JD), modified Julian Day numbers (MJD), or calendar dates
-        time_list_type: override default assumptions, specify type of time used in time_list
+        time_list: list up to 10,000 discrete output times as calendar dates, format as "%Y-%b-%d %H:%M:%S.%f"
     """
 
     # Build the query parameters
@@ -325,6 +324,7 @@ async def vectors_time_list(
     # step_size_amt: magnitude of ephemeris time step
     # step_size_unit: units of ephemeris time step
     # time_digits: controls output time precision
+    # time_list_type: override default assumptions, specify type of time used in time_list
     # ref_system: specifies reference frame for any geometric and astrometric quantities
     # out_units: selects output units for distance and time; for example, AU-D selects astronomical units (au) and days (d)
     # vec_table: selects vector table format
@@ -355,8 +355,8 @@ async def vectors_time_list(
     #     query_params["TIME_DIGITS"] = time_digits.name.upper()
     if time_list is not None:
         query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, time_list)))
-    if time_list_type is not None:
-        query_params["TLIST_TYPE"] = time_list_type.name.upper()
+    # if time_list_type is not None:
+    #     query_params["TLIST_TYPE"] = time_list_type.name.upper()
     # if ref_system is not None:
     #     query_params["REF_SYSTEM"] = ref_system.name.upper()
     # if out_units is not None:
@@ -416,8 +416,8 @@ async def vectors_time_range(
         make_ephem: toggles generation of ephemeris, if possible
         center: selects coordinate origin (observing site), format as "site@body"
         coord_type: selects type of user coordinates
-        start_time: specifies ephemeris start time
-        stop_time: specifies ephemeris stop time
+        start_time: specifies ephemeris start time, format as "%Y-%b-%d %H:%M:%S.%f"
+        stop_time: specifies ephemeris stop time, format as "%Y-%b-%d %H:%M:%S.%f"
         step_size_amt: magnitude of ephemeris time step
         step_size_unit: units of ephemeris time step
     """
@@ -533,8 +533,8 @@ async def observer_request(
         make_ephem: toggles generation of ephemeris, if possible
         center: selects coordinate origin (observing site), format as "site@body"
         coord_type: selects type of user coordinates
-        start_time: specifies ephemeris start time
-        stop_time: specifies ephemeris stop time
+        start_time: specifies ephemeris start time, format as "%Y-%b-%d %H:%M:%S.%f"
+        stop_time: specifies ephemeris stop time, format as "%Y-%b-%d %H:%M:%S.%f"
         step_size_amt: magnitude of ephemeris time step
         step_size_unit: units of ephemeris time step
     """
@@ -649,8 +649,8 @@ async def spk_request(
         command: target search, selection, or enter user-input object mode
         obj_data: toggles return of object summary data
         make_ephem: toggles generation of ephemeris, if possible
-        start_time: specifies ephemeris start time
-        stop_time: specifies ephemeris stop time
+        start_time: specifies ephemeris start time, format as "%Y-%b-%d %H:%M:%S.%f"
+        stop_time: specifies ephemeris stop time, format as "%Y-%b-%d %H:%M:%S.%f"
     """
 
     # Build the query parameters
