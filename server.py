@@ -279,7 +279,7 @@ async def elements_request(
 @mcp.tool
 async def vectors_time_list(
     command: str,
-    obj_data: Optional[bool] = True,
+    obj_data: Optional[bool] = False,
     make_ephem: Optional[bool] = True,
     center: Optional[str] = None,
     coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
@@ -386,7 +386,7 @@ async def vectors_time_list(
 @mcp.tool
 async def vectors_time_range(
     command: str,
-    obj_data: Optional[bool] = True,
+    obj_data: Optional[bool] = False,
     make_ephem: Optional[bool] = True,
     center: Optional[str] = None,
     coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
@@ -493,7 +493,7 @@ async def vectors_time_range(
 @mcp.tool
 async def observer_request(
     command: str,
-    obj_data: Optional[bool] = True,
+    obj_data: Optional[bool] = False,
     make_ephem: Optional[bool] = True,
     center: Optional[str] = None,
     coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
@@ -628,6 +628,8 @@ async def observer_request(
 
     async with httpx.AsyncClient() as client:
         try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             response.raise_for_status()
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
@@ -639,7 +641,7 @@ async def observer_request(
 @mcp.tool
 async def spk_request(
     command: str,
-    obj_data: Optional[bool] = True,
+    obj_data: Optional[bool] = False,
     make_ephem: Optional[bool] = True,
     start_time: Optional[datetime] = None,
     stop_time: Optional[datetime] = None,
@@ -684,7 +686,7 @@ async def spk_request(
 @mcp.tool
 async def close_approach_request(
     command: str,
-    obj_data: Optional[bool] = True,
+    obj_data: Optional[bool] = False,
     make_ephem: Optional[bool] = True,
     CaTableType: Optional[CaTableTypeEnum] = CaTableTypeEnum.STANDARD,
     Tca3sgLimit: Optional[int] = 14400,
