@@ -1,5 +1,6 @@
 import httpx
 import urllib.parse
+import sys
 from fastmcp import FastMCP
 from typing import Any, Optional, Tuple, Protocol
 from enum import Enum, StrEnum, auto
@@ -629,6 +630,8 @@ async def observer_request(
         try:
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             response.raise_for_status()
+            print("DEBUG: Tool response payload structure:", file=sys.stderr)
+            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
