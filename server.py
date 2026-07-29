@@ -2,7 +2,7 @@ import httpx
 import urllib.parse
 from fastmcp import FastMCP
 from typing import Any, Optional, Tuple, Protocol
-from enum import StrEnum, auto
+from enum import Enum, StrEnum, auto
 from dataclasses import dataclass
 from datetime import datetime
 from functools import reduce
@@ -13,8 +13,8 @@ from functools import reduce
     Fixed for:
     x   - Horizons API  
     x       - Observer
-    x       - Vectors
-    x       - Elements
+    ✓       - Vectors
+    ✓       - Elements
     ✓       - Spk
     ✓       - Approach
     ✓   - Horizons Lookup API
@@ -36,6 +36,28 @@ class Stringable(Protocol):
 
 def format_escape_char_url(value) -> str:
     return urllib.parse.quote(value)
+
+def format_out_units(value) -> str:
+    match value:
+        case OutUnits.KMS:
+            return "KM-S"
+        case OutUnits.AUD:
+            return "AU-D"
+        case OutUnits.KMD:
+            return "KM-D"
+        case _:
+            return "KM-S"
+
+def format_vec_corr(value) -> str:
+    match value:
+        case VecCorr.NONE:
+            return "NONE"
+        case VecCorr.LT:
+            return "LT"
+        case VecCorr.LTS:
+            return "LT+S"
+        case _:
+            return "NONE"
     
 def format_to_custom_datetime(dt_obj: datetime) -> str:
     # %Y = Year, %b = Abbreviated month name (e.g., Jul), %d = Day
@@ -56,6 +78,9 @@ def format_to_single_quote_string(value) -> str:
 def format_to_yes_no(value: bool) -> str:
     return "'YES'" if value else "'NO'"
 
+def format_to_upper(value: StrEnum) -> str:
+    return value.name.upper()
+
 def format_bool(val: bool) -> BinaryResponse:
     if val:
         return BinaryResponse.YES
@@ -71,6 +96,24 @@ class Ephemeris(StrEnum):
     ELEMENTS = auto()
     SPK = auto()
     APPROACH = auto()
+
+class VecTable(Enum):
+    POSITION = 1
+    STATE = 2
+    STATE_LIGHT_RANGE_RATE = 3
+    POSITION_LIGHT_RANGE_RATE = 4
+    VELOCITY = 5
+    LIGHT_RANGE_RATE = 6
+
+class OutUnits(StrEnum):
+    KMS = auto()
+    AUD = auto()
+    KMD = auto()
+
+class VecCorr(StrEnum):
+    NONE = auto()
+    LT = auto()
+    LTS = auto()
 
 class CenterEnum(StrEnum):
     COORD = auto()
@@ -88,6 +131,13 @@ class TimeDigits(StrEnum):
     MINUTES = auto()
     SECONDS = auto()
     FRACSEC = auto()
+
+class TimeStep(StrEnum):
+    m = auto()
+    h = auto()
+    d = auto()
+    mo = auto()
+    yr = auto()
 
 class TimeListType(StrEnum):
     JD = auto()
@@ -227,27 +277,121 @@ async def observer_request(
 @mcp.tool
 async def vectors_request(
     command: str,
-    obj_data: bool,
-    make_ephem: bool,
-    vectors_data: Vectors
+    obj_data: Optional[bool] = True,
+    make_ephem: Optional[bool] = True,
+    center: Optional[str] = None,
+    coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
+    site_coord: Optional[tuple[float,float,float]] = (0.0,0.0,0.0),
+    start_time: Optional[datetime] = None,
+    stop_time: Optional[datetime] = None,
+    step_size_amt: Optional[int] = None,
+    step_size_unit: Optional[TimeStep] = None,
+    time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
+    time_list: Optional[list[str]] = None,
+    time_list_type: Optional[TimeListType] = None,
+    ref_system: Optional[ReferenceFrame] = ReferenceFrame.ICRF,
+    out_units: Optional[OutUnits] = OutUnits.KMS,
+    vec_table: Optional[VecTable] = VecTable.STATE_LIGHT_RANGE_RATE,
+    vec_corr: Optional[VecCorr] = VecCorr.NONE,
+    cal_type: Optional[CalendarType] = CalendarType.MIXED,
+    csv_format: Optional[bool] = False,
+    vec_labels: Optional[bool] = False,
+    vec_delta_t: Optional[bool] = False,
 ) -> dict[str, Any] | None:
     """
-    Outputs raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz). 
-    It treats the solar system like a massive grid, ignoring how things look from the ground.
+    Obtain raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
+    This treats the solar system like a massive grid, ignoring how things look from the ground.
+
+    Args:
+        command: target search, selection, or enter user-input object mode
+        obj_data: toggles return of object summary data
+        make_ephem: toggles generation of ephemeris, if possible
+        center: selects coordinate origin (observing site), format as "site@body"
+        coord_type: selects type of user coordinates
+        start_time: specifies ephemeris start time
+        stop_time: specifies ephemeris stop time
+        step_size_amt: magnitude of ephemeris time step
+        step_size_unit: units of ephemeris time step
+        time_digits: controls output time precision
+        time_list: list up to 10,000 discrete output times, either Julian Day numbers (JD), modified Julian Day numbers (MJD), or calendar dates
+        time_list_type: override default assumptions, specify type of time used in time_list
+        ref_system: specifies reference frame for any geometric and astrometric quantities
+        out_units: selects output units for distance and time; for example, AU-D selects astronomical units (au) and days (d)
+        vec_table: selects vector table format
+        vec_corr: selects level of correction to output vectors; NONE (geometric states), LT (astrometric light-time corrected states) or LT+S (astrometric states corrected for stellar aberration)
+        cal_type: Selects Gregorian-only calendar input/output, or mixed Julian/Gregorian, switching on 1582-Oct-5. Recognized for close-approach tables also.
+        csv_format: toggles output of table in comma-separated value format
+        vec_labels: toggles labeling of each vector component
+        vec_delta_t: toggles output of the time-varying delta-T difference TDB-UT
     """
-    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.VECTORS, vectors_data)
+
+    # Build the query parameters
+    query_params = {
+        "format": "json",
+        "COMMAND": "'" + command + "'",
+        "EPHEM_TYPE": "'" + Ephemeris.VECTORS.name.upper() + "'"
+    }
+
+    # Optional parameters
+    if obj_data is not None:
+        query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
+    if make_ephem is not None:
+        query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
+    if center is not None:
+        query_params["CENTER"] = format_to_single_quote_string(center)
+    if coord_type is not None:
+        query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
+    if site_coord is not None:
+        query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
+    if start_time is not None:
+        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
+    if stop_time is not None:
+        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
+    if step_size_amt is not None and step_size_unit is not None:
+        query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
+    if time_digits is not None:
+        query_params["TIME_DIGITS"] = time_digits.name.upper()
+    if time_list is not None:
+        query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, time_list)))
+    if time_list_type is not None:
+        query_params["TLIST_TYPE"] = time_list_type.name.upper()
+    if ref_system is not None:
+        query_params["REF_SYSTEM"] = ref_system.name.upper()
+    if out_units is not None:
+        query_params["OUT_UNITS"] = format_out_units(out_units)
+    if vec_table is not None:
+        query_params["VEC_TABLE"] = f"{vec_table.value}"
+    if vec_corr is not None:
+        query_params["VEC_CORR"] = format_vec_corr(vec_corr)
+    if cal_type is not None:
+        query_params["CAL_TYPE"] = cal_type.name.upper()
+    if csv_format is not None:
+        query_params["CSV_FORMAT"] = format_to_yes_no(csv_format)
+    if vec_labels is not None:
+        query_params["VEC_LABELS"] = format_to_yes_no(vec_labels)
+    if vec_delta_t is not None:
+        query_params["VEC_DELTA_T"] = format_to_yes_no(vec_delta_t)
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return None
 
 @mcp.tool
 async def elements_request(
     command: str,
     obj_data: Optional[bool] = True,
     make_ephem: Optional[bool] = True,
-    center: Optional[CenterEnum] = CenterEnum.GEO,
+    center: Optional[str] = None,
     coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
     site_coord: Optional[tuple[float,float,float]] = (0.0,0.0,0.0),
     start_time: Optional[datetime] = None,
     stop_time: Optional[datetime] = None,
-    step_size: Optional[str] = '60 min',
+    step_size_amt: Optional[int] = None,
+    step_size_unit: Optional[TimeStep] = None,
     time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
     time_zone: Optional[str] = None,
     time_list: Optional[list[str]] = None,
@@ -255,6 +399,19 @@ async def elements_request(
     ref_system: Optional[ReferenceFrame] = ReferenceFrame.ICRF,
     cal_format: Optional[CalendarFormat] = CalendarFormat.CAL,
     cal_type: Optional[CalendarType] = CalendarType.MIXED,
+    ang_format: Optional[AngleFormat] = AngleFormat.HMS,
+    apparent: Optional[RefractionCorrection] = RefractionCorrection.AIRLESS,
+    range_units: Optional[DistanceUnits] = DistanceUnits.AU,
+    suppress_range_rate: Optional[bool] = False,
+    elev_cut: Optional[int] = -90,
+    skip_daylt: Optional[bool] = False,
+    solar_elong: Optional[Tuple[int,int]] = (0,180), 
+    airmass: Optional[float] = 38.0,
+    lha_cutoff: Optional[float] = 0.0,
+    ang_rate_cutoff: Optional[float] = 0.0,
+    extra_prec: Optional[bool] = False,
+    csv_format: Optional[bool] = False,
+    rts_only: Optional[bool] = False,
 ) -> dict[str, Any] | None:
     """
     Determine geometric orbital parameters (eccentricity, inclination) for the specified command. 
@@ -262,6 +419,35 @@ async def elements_request(
     not an active position or visual viewing angle.
 
     Args:
+        command: target search, selection, or enter user-input object mode
+        obj_data: toggles return of object summary data
+        make_ephem: toggles generation of ephemeris, if possible
+        center: selects coordinate origin (observing site), format as "site@body"
+        coord_type: selects type of user coordinates
+        start_time: specifies ephemeris start time
+        stop_time: specifies ephemeris stop time
+        step_size_amt: magnitude of ephemeris time step
+        step_size_unit: units of ephemeris time step
+        time_digits: controls output time precision
+        time_zone: specifies local civil time offset relative to UT
+        time_list: list up to 10,000 discrete output times, either Julian Day numbers (JD), modified Julian Day numbers (MJD), or calendar dates
+        time_list_type: override default assumptions, specify type of time used in time_list
+        ref_system: specifies reference frame for any geometric and astrometric quantities
+        cal_format: selects type of date output; CAL for calendar date/time, JD for Julian Day numbers, or BOTH for both CAL and JD
+        cal_type: Selects Gregorian-only calendar input/output, or mixed Julian/Gregorian, switching on 1582-Oct-5. Recognized for close-approach tables also.
+        ang_format: selects RA/DEC output format
+        apparent: toggles refraction correction of apparent coordinates (Earth topocentric only)
+        range_units: sets the units on range quantities output
+        suppress_range_rate: turns off output of delta-dot and rdot (range-rate)
+        elev_cut: skip output when object elevation is less than specified
+        skip_daylt: toggles skipping of print-out when daylight at CENTER
+        solar_elong: sets bounds on output based on solar elongation angle
+        airmass: select airmass cutoff; output is skipped if relative optical airmass is greater than the single decimal value specified. Note than 1.0=zenith, 38.0 ~= local-horizon. If value is set >= 38.0, this turns OFF the filtering effect.
+        lha_cutoff: skip output when local hour angle exceeds a specified value in the domain 0.0 < X < 12.0. To restore output (turn OFF the cut-off behavior), set X to 0.0 or 12.0. For example, a cut-off value of 1.5 will output table data only when the LHA is within +/- 1.5 angular hours of zenith meridian.
+        ang_rate_cutoff: skip output when the total plane-of-sky angular rate exceeds a specified value
+        extra_prec: toggles additional output digits on some angles such as RA/DEC
+        csv_format: toggles output of table in comma-separated value format
+        rts_only: toggles output only at target rise/transit/set
     """
 
     # Build the query parameters
@@ -277,7 +463,7 @@ async def elements_request(
     if make_ephem is not None:
         query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
     if center is not None:
-        query_params["CENTER"] = format_to_single_quote_string(center.name)
+        query_params["CENTER"] = format_to_single_quote_string(center)
     if coord_type is not None:
         query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
     if site_coord is not None:
@@ -286,8 +472,8 @@ async def elements_request(
         query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
     if stop_time is not None:
         query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
-    if step_size is not None:
-        query_params["STEP_SIZE"] = format_to_single_quote_string(step_size)
+    if step_size_amt is not None and step_size_unit is not None:
+        query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
     if time_digits is not None:
         query_params["TIME_DIGITS"] = time_digits.name.upper()
     if time_zone is not None:
@@ -302,6 +488,32 @@ async def elements_request(
         query_params["CAL_FORMAT"] = cal_format.name.upper()
     if cal_type is not None:
         query_params["CAL_TYPE"] = cal_type.name.upper()
+    if ang_format is not None:
+        query_params["ANG_FORMAT"] = ang_format.name.upper()
+    if apparent is not None:
+        query_params["APPARENT"] = apparent.name.upper()
+    if range_units is not None:
+        query_params["RANGE_UNITS"] = range_units.name.upper()
+    if suppress_range_rate is not None:
+        query_params["SUPPRESS_RANGE_RATE"] = format_to_yes_no(suppress_range_rate)
+    if elev_cut is not None:
+        query_params["ELEV_CUT"] = format_to_single_quote_string(elev_cut)
+    if skip_daylt is not None:
+        query_params["SKIP_DAYLT"] = format_to_yes_no(skip_daylt)
+    if solar_elong is not None:
+        query_params["SOLAR_ELONG"] = format_to_single_quote_string(format_to_comma_sep_string(solar_elong))
+    if airmass is not None:
+        query_params["AIRMASS"] = f"{airmass}"
+    if lha_cutoff is not None:
+        query_params["LHA_CUTOFF"] = f"{lha_cutoff}"
+    if ang_rate_cutoff is not None:
+        query_params["ANG_RATE_CUTOFF"] = f"{ang_rate_cutoff}"
+    if extra_prec is not None:
+        query_params["EXTRA_PREC"] = format_to_yes_no(extra_prec)
+    if csv_format is not None:
+        query_params["CSV_FORMAT"] = format_to_yes_no(csv_format)
+    if rts_only is not None:
+        query_params["R_T_S_ONLY"] = format_to_yes_no(rts_only)
 
     async with httpx.AsyncClient() as client:
         try:
