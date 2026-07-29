@@ -21,6 +21,7 @@ from functools import reduce
     ✓   - Fireball API
 
 @TODO: Fix handling of datetime params to enforce ISO 8601
+@TODO: Elements and Observer request may be swapped, check and fix
 """
 
 
