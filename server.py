@@ -69,6 +69,13 @@ def format_to_custom_datetime(dt_obj: datetime) -> str:
     # Slice off the last 3 digits of microseconds to enforce milliseconds (.fff)
     return base_str[:-3]
 
+def format_to_custom_datetime_no_ms(dt_obj: datetime) -> str:
+    # %Y = Year, %b = Abbreviated month name (e.g., Jul), %d = Day
+    # %H = Hour (24h), %M = Minute, %S = Second
+    base_str = dt_obj.strftime("%Y-%b-%d %H:%M:%S")
+    # Slice off the last 3 digits of microseconds to enforce milliseconds (.fff)
+    return base_str
+
 def format_to_comma_sep_string(stringable_list) -> str:
     return reduce(lambda x, y: x + "," + y, map(lambda x: str(x), stringable_list))
 
@@ -826,9 +833,9 @@ async def fireball_event_lookup(
     query_params = {}
 
     if date_min is not None:
-        query_params["date-min"] = date_min
+        query_params["date-min"] = format_to_custom_datetime_no_ms(date_min)
     if date_max is not None:
-        query_params["date-max"] = date_max
+        query_params["date-max"] = format_to_custom_datetime_no_ms(date_max)
     if energy_min is not None:
         query_params["energy-min"] = energy_min
     if energy_max is not None:
