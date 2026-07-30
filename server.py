@@ -48,6 +48,8 @@ def verify_api_version(response_json: Any) -> None:
 
 def verify_response(response: httpx.Response) -> None:
     response.raise_for_status()
+    print("DEBUG: Tool response payload structure:", file=sys.stderr)
+    print(response.json(), file=sys.stderr)
     verify_api_version(response.json())
 
 ### INTERNAL UTILITIES
