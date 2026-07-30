@@ -39,18 +39,20 @@ class ApiVersionError(Exception):
 JPL_FIREBALL_BASE_URL = "https://ssd-api.jpl.nasa.gov/fireball.api"
 JPL_HORIZONS_LOOKUP_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
 JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
-JPL_HORIZONS_API_SUPPORT_VERSION = "1.2"
+JPL_HORIZONS_API_SUPPORT_VERSION = "1.3"
+JPL_FIREBALL_API_SUPPORT_VERSION = "1.2"
+JPL_LOOKUP_API_SUPPORT_VERSION = "1.1"
 
-def verify_api_version(response_json: Any) -> None:
+def verify_api_version(response_json: Any, support_version: str) -> None:
     response_version = response_json["signature"]["version"]
-    if response_version != JPL_HORIZONS_API_SUPPORT_VERSION:
+    if response_version != support_version:
         raise ApiVersionError(f"API response version {response_version} does not match support version {JPL_HORIZONS_API_SUPPORT_VERSION}")
 
-def verify_response(response: httpx.Response) -> None:
+def verify_response(response: httpx.Response, support_version: str) -> None:
     response.raise_for_status()
     print("DEBUG: Tool response payload structure:", file=sys.stderr)
     print(response.json(), file=sys.stderr)
-    verify_api_version(response.json())
+    verify_api_version(response.json(), support_version)
 
 ### INTERNAL UTILITIES
     
@@ -288,7 +290,7 @@ async def _make_request(
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(url, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
             return None
@@ -318,7 +320,7 @@ async def get_astronomical_object_data(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
@@ -390,7 +392,7 @@ async def vectors_time_list(
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
             return None
@@ -452,7 +454,7 @@ async def vectors_time_range(
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
             return None
@@ -505,7 +507,7 @@ async def observer_request(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
@@ -554,7 +556,7 @@ async def spk_request(
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
             return None
@@ -605,7 +607,7 @@ async def close_approach_request(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
@@ -652,7 +654,7 @@ async def lookup_object_id(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_LOOKUP_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_LOOKUP_API_SUPPORT_VERSION)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
@@ -739,7 +741,7 @@ async def fireball_event_lookup(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_FIREBALL_BASE_URL, params=query_params)
-            verify_response(response)
+            verify_response(response, JPL_FIREBALL_API_SUPPORT_VERSION)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
