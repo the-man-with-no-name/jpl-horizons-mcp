@@ -27,7 +27,7 @@ from functools import reduce
 @TODO: Add result parsing, LLMs have a hard time parsing the raw text result,
         ephemeris is located between $$SOE and $$EOE tags and can request
         CSV_FORMAT=YES for easier parsing
-@TODO: Separate object data into a different request tool
+@TODO: Fix parsing of dates for vectors_time_list
 """
 
 ### API INFORMATION
@@ -39,7 +39,7 @@ class ApiVersionError(Exception):
 JPL_FIREBALL_BASE_URL = "https://ssd-api.jpl.nasa.gov/fireball.api"
 JPL_HORIZONS_LOOKUP_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
 JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
-JPL_HORIZONS_API_SUPPORT_VERSION = "1.3"
+JPL_HORIZONS_API_SUPPORT_VERSION = "1.2"
 JPL_FIREBALL_API_SUPPORT_VERSION = "1.2"
 JPL_LOOKUP_API_SUPPORT_VERSION = "1.1"
 
