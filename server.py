@@ -2,7 +2,8 @@ import httpx
 import urllib.parse
 import sys
 from fastmcp import FastMCP
-from typing import Any, Optional, Tuple, Protocol
+from typing import Any, Optional, Tuple, Protocol, Annotated, Literal
+from pydantic import Field
 from enum import Enum, StrEnum, auto
 from dataclasses import dataclass
 from datetime import datetime
@@ -754,8 +755,8 @@ class CelestialObjectGroup(StrEnum):
 
 @mcp.tool
 async def lookup_object_id(
-    search_string: str,
-    group: Optional[CelestialObjectGroup] = None,
+    search_string: Annotated[str, Field(description="Search string containing object name, designation, SPK-ID, IAU number, or MPC packed-format designation")],
+    group: Annotated[CelestialObjectGroup | None, Field(description="Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only")] = None,
 ) -> dict[str, Any] | None:
     """
     Process a user-specified name, designation, SPK-ID, IAU number, 
@@ -763,10 +764,6 @@ async def lookup_object_id(
     in a standardized format its primary synonyms and all aliases 
     recognized by JPL's Horizons system as being linked to publicly 
     available trajectory data.
-
-    Args:
-        search_string: Search string containing object name, designation, SPK-ID, IAU number, or MPC packed-format designation
-        group: Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only
     """
 
     # Build the query parameters
