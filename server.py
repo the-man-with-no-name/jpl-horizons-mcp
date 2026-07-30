@@ -500,12 +500,12 @@ async def vectors_time_range(
 
 @mcp.tool
 async def observer_request(
-    command: Annotated[str, Field(description="target search, selection, or enter user-input object mode")],
+    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
     obj_data: Annotated[bool | None, Field(default=False, description="toggles return of object summary data")],
     make_ephem: Annotated[bool | None, Field(default=True, description="toggles generation of ephemeris, if possible")],
-    center: Annotated[str | None, Field(default=None, description="selects coordinate origin (observing site), format as 'site@body'")],
+    #center: Annotated[str | None, Field(default=None, description="selects coordinate origin (observing site), format as 'site@body'")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[tuple[float,float,float] | None, Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
     start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time")],
     stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time")],
     step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
@@ -570,8 +570,9 @@ async def observer_request(
         query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
     if make_ephem is not None:
         query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
-    if center is not None:
-        query_params["CENTER"] = format_to_single_quote_string(center)
+    #if center is not None:
+    #    query_params["CENTER"] = format_to_single_quote_string(center)
+    query_params["CENTER"] = format_to_single_quote_string("coord")
     if coord_type is not None:
         query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
     if site_coord is not None:
