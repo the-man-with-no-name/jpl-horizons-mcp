@@ -756,7 +756,7 @@ class CelestialObjectGroup(StrEnum):
 @mcp.tool
 async def lookup_object_id(
     search_string: Annotated[str, Field(description="Search string containing object name, designation, SPK-ID, IAU number, or MPC packed-format designation")],
-    group: Annotated[CelestialObjectGroup | None, Field(description="Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only")] = None,
+    group: Annotated[CelestialObjectGroup | None, Field(default=None, description="Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only")],
 ) -> dict[str, Any] | None:
     """
     Process a user-specified name, designation, SPK-ID, IAU number, 
@@ -801,43 +801,26 @@ class SortOrder(StrEnum):
 
 @mcp.tool
 async def fireball_event_lookup(
-    date_min: Optional[str] = None, # enforce datetime object better here
-    date_max: Optional[str] = None, # ...and here
-    energy_min: Optional[float] = None,
-    energy_max: Optional[float] = None,
-    impact_energy_min: Optional[float] = None,
-    impact_energy_max: Optional[float] = None,
-    altitude_min: Optional[float] = None,
-    altitude_max: Optional[float] = None,
-    require_location: Optional[bool] = None,
-    require_altitude: Optional[bool] = None,
-    require_velocity_component: Optional[bool] = None,
-    velocity_component: Optional[bool] = None,
-    sort_component: Optional[FireballSortComponent] = None,
-    sort_order: Optional[SortOrder] = None,
-    limit: Optional[int] = None,
+    date_min: Annotated[datetime | None, Field(default=None, description="Exclude data earlier than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss")],
+    date_max: Annotated[datetime | None, Field(default=None, description="Exclude data later than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss")],
+    energy_min: Annotated[float | None, Field(default=None, description="Exclude data with total-radiated-energy less than this positive value in joules * 10^10 (e.g., 0.3 = 0.3 * 10^10 joules)")],
+    energy_max: Annotated[float | None, Field(default=None, description="Exclude data with total-radiated-energy more than this positive value in joules * 10^10 (e.g., 0.3 = 0.3 * 10^10 joules)")],
+    impact_energy_min: Annotated[float | None, Field(default=None, description="exclude data with estimated impact energy less than this positive value in kilotons (kt) (e.g., 0.08 kt)")],
+    impact_energy_max: Annotated[float | None, Field(default=None, description="exclude data with estimated impact energy more than this positive value in kilotons (kt) (e.g., 0.08 kt)")],
+    altitude_min: Annotated[float | None, Field(default=None, description="exclude data from objects with an altitude less than this (e.g., 22 meaning objects smaller than this)")],
+    altitude_max: Annotated[float | None, Field(default=None, description="exclude data from objects with an altitude greater than this (e.g., 17.75 meaning objects smaller than this)")],
+    require_location: Annotated[bool | None, Field(default=None, description="location (latitude and longitude) required; when set true, exclude data without a location")],
+    require_altitude: Annotated[bool | None, Field(default=None, description="altitude required; when set true, exclude data without an altitude")],
+    require_velocity_component: Annotated[bool | None, Field(default=None, description="Entry velocity components required; when set true, exclude data without entry velocity components")],
+    velocity_component: Annotated[bool | None, Field(default=None, description="include entry velocity components")],
+    sort_component: Annotated[FireballSortComponent | None, Field(default=None, description="which field to sort the resulting data on; 'date', 'energy', 'impact-e', 'vel', or 'alt'")],
+    sort_order: Annotated[SortOrder | None, Field(default=None, description="sort the data in ascending or descending order")],
+    limit: Annotated[int | None, Field(default=None, description="limit data to the first N results (where N is the specified number and must be an integer value greater than zero)", ge=1)],
 ) -> dict[str, Any] | None:
     """
     The fireball data API provides a method of requesting specific records 
     from the available data-set. Every successful query will return content 
     representing one or more fireball data records.
-
-    Args:
-        date_min: exclude data earlier than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss
-        date_max: exclude data later than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss
-        energy_min: exclude data with total-radiated-energy less than this positive value in joules * 10^10 (e.g., 0.3 = 0.3 * 10^10 joules)
-        energy_max: exclude data with total-radiated-energy greater than this (see energy_min)
-        impact_energy_min: exclude data with estimated impact energy less than this positive value in kilotons (kt) (e.g., 0.08 kt)
-        impact_energy_max: exclude data with total-radiated-energy greater than this (see impact_energy_min)
-        altitude_min: exclude data from objects with an altitude less than this (e.g., 22 meaning objects smaller than this)
-        altitude_max: exclude data from objects with an altitude greater than this (e.g., 17.75 meaning objects larger than this)
-        require_location: location (latitude and longitude) required; when set true, exclude data without a location
-        require_altitude: altitude required; when set true, exclude data without an altitude
-        require_velocity_component: Entry velocity components required; when set true, exclude data without entry velocity components
-        velocity_component: include entry velocity components
-        sort_component: which field to sort the resulting data on; “date”, “energy”, “impact-e”, “vel”, or “alt” 
-        sort_order: sort the data in ascending or descending order
-        limit: limit data to the first N results (where N is the specified number and must be an integer value greater than zero)
     """
 
     # Build the query parameters
