@@ -24,6 +24,9 @@ from functools import reduce
 
 @TODO: Fix handling of datetime params to enforce ISO 8601
 @TODO: Elements and Observer request may be swapped, check and fix
+@TODO: Add result parsing, LLMs have a hard time parsing the raw text result,
+        ephemeris is located between $$SOE and $$EOE tags and can request
+        CSV_FORMAT=YES for easier parsing
 """
 
 
