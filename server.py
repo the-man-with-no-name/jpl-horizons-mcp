@@ -30,6 +30,25 @@ from functools import reduce
 @TODO: Separate object data into a different request tool
 """
 
+### API INFORMATION
+
+class ApiVersionError(Exception):
+    """Exception raised when response version does not match support version"""
+    pass
+
+JPL_FIREBALL_BASE_URL = "https://ssd-api.jpl.nasa.gov/fireball.api"
+JPL_HORIZONS_LOOKUP_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
+JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
+JPL_HORIZONS_API_SUPPORT_VERSION = "1.2"
+
+def verify_api_version(response_json: Any) -> None:
+    response_version = response_json["signature"]["version"]
+    if response_version != JPL_HORIZONS_API_SUPPORT_VERSION:
+        raise ApiVersionError(f"API response version {response_version} does not match support version {JPL_HORIZONS_API_SUPPORT_VERSION}")
+
+def verify_response(response: httpx.Response) -> None:
+    response.raise_for_status()
+    verify_api_version(response.json())
 
 ### INTERNAL UTILITIES
     
@@ -101,8 +120,6 @@ def format_bool(val: bool) -> BinaryResponse:
     return BinaryResponse.NO
 
 ### HORIZONS API FOR LOCATIONS
-
-JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 
 class Ephemeris(StrEnum):
     OBSERVER = auto()
@@ -269,10 +286,12 @@ async def _make_request(
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(url, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             return response.json()
         except Exception:
             return None
+
+### ASTRONOMICAL DATA
 
 @mcp.tool
 async def get_astronomical_object_data(
@@ -297,12 +316,14 @@ async def get_astronomical_object_data(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
+
+### ELEMENTS EPHEMERIS
 
 #@mcp.tool
 async def elements_request(
@@ -318,6 +339,8 @@ async def elements_request(
     """
     return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.ELEMENTS, observer_data)
 
+### VECTORS EPHEMERIS
+
 @mcp.tool
 async def vectors_time_list(
     command: str,
@@ -326,21 +349,7 @@ async def vectors_time_list(
     center: Optional[str] = None,
     coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
     site_coord: Optional[tuple[float,float,float]] = (0.0,0.0,0.0),
-    # start_time: Optional[datetime] = None,
-    # stop_time: Optional[datetime] = None,
-    # step_size_amt: Optional[int] = None,
-    # step_size_unit: Optional[TimeStep] = None,
-    # time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
     time_list: Optional[list[str]] = None,
-    #time_list_type: Optional[TimeListType] = None,
-    # ref_system: Optional[ReferenceFrame] = ReferenceFrame.ICRF,
-    # out_units: Optional[OutUnits] = OutUnits.KMS,
-    # vec_table: Optional[VecTable] = VecTable.STATE_LIGHT_RANGE_RATE,
-    # vec_corr: Optional[VecCorr] = VecCorr.NONE,
-    # cal_type: Optional[CalendarType] = CalendarType.MIXED,
-    # csv_format: Optional[bool] = False,
-    # vec_labels: Optional[bool] = False,
-    # vec_delta_t: Optional[bool] = False,
 ) -> dict[str, Any] | None:
     """
     Obtain raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
@@ -362,21 +371,6 @@ async def vectors_time_list(
         "EPHEM_TYPE": "'" + Ephemeris.VECTORS.name.upper() + "'"
     }
 
-    # start_time: specifies ephemeris start time
-    # stop_time: specifies ephemeris stop time
-    # step_size_amt: magnitude of ephemeris time step
-    # step_size_unit: units of ephemeris time step
-    # time_digits: controls output time precision
-    # time_list_type: override default assumptions, specify type of time used in time_list
-    # ref_system: specifies reference frame for any geometric and astrometric quantities
-    # out_units: selects output units for distance and time; for example, AU-D selects astronomical units (au) and days (d)
-    # vec_table: selects vector table format
-    # vec_corr: selects level of correction to output vectors; NONE (geometric states), LT (astrometric light-time corrected states) or LT+S (astrometric states corrected for stellar aberration)
-    # cal_type: Selects Gregorian-only calendar input/output, or mixed Julian/Gregorian, switching on 1582-Oct-5. Recognized for close-approach tables also.
-    # csv_format: toggles output of table in comma-separated value format
-    # vec_labels: toggles labeling of each vector component
-    # vec_delta_t: toggles output of the time-varying delta-T difference TDB-UT
-
     # Optional parameters
     if obj_data is not None:
         query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
@@ -388,39 +382,13 @@ async def vectors_time_list(
         query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
     if site_coord is not None:
         query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
-    # if start_time is not None:
-    #     query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
-    # if stop_time is not None:
-    #     query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
-    # if step_size_amt is not None and step_size_unit is not None:
-    #     query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
-    # if time_digits is not None:
-    #     query_params["TIME_DIGITS"] = time_digits.name.upper()
     if time_list is not None:
         query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, time_list)))
-    # if time_list_type is not None:
-    #     query_params["TLIST_TYPE"] = time_list_type.name.upper()
-    # if ref_system is not None:
-    #     query_params["REF_SYSTEM"] = ref_system.name.upper()
-    # if out_units is not None:
-    #     query_params["OUT_UNITS"] = format_out_units(out_units)
-    # if vec_table is not None:
-    #     query_params["VEC_TABLE"] = f"{vec_table.value}"
-    # if vec_corr is not None:
-    #     query_params["VEC_CORR"] = format_vec_corr(vec_corr)
-    # if cal_type is not None:
-    #     query_params["CAL_TYPE"] = cal_type.name.upper()
-    # if csv_format is not None:
-    #     query_params["CSV_FORMAT"] = format_to_yes_no(csv_format)
-    # if vec_labels is not None:
-    #     query_params["VEC_LABELS"] = format_to_yes_no(vec_labels)
-    # if vec_delta_t is not None:
-    #     query_params["VEC_DELTA_T"] = format_to_yes_no(vec_delta_t)
 
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             return response.json()
         except Exception:
             return None
@@ -437,17 +405,6 @@ async def vectors_time_range(
     stop_time: Optional[datetime] = None,
     step_size_amt: Optional[int] = None,
     step_size_unit: Optional[TimeStep] = None,
-    # time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
-    # time_list: Optional[list[str]] = None,
-    # time_list_type: Optional[TimeListType] = None,
-    # ref_system: Optional[ReferenceFrame] = ReferenceFrame.ICRF,
-    # out_units: Optional[OutUnits] = OutUnits.KMS,
-    # vec_table: Optional[VecTable] = VecTable.STATE_LIGHT_RANGE_RATE,
-    # vec_corr: Optional[VecCorr] = VecCorr.NONE,
-    # cal_type: Optional[CalendarType] = CalendarType.MIXED,
-    # csv_format: Optional[bool] = False,
-    # vec_labels: Optional[bool] = False,
-    # vec_delta_t: Optional[bool] = False,
 ) -> dict[str, Any] | None:
     """
     Obtain raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
@@ -472,18 +429,6 @@ async def vectors_time_range(
         "EPHEM_TYPE": "'" + Ephemeris.VECTORS.name.upper() + "'"
     }
 
-    # time_digits: controls output time precision
-    # time_list: list up to 10,000 discrete output times, either Julian Day numbers (JD), modified Julian Day numbers (MJD), or calendar dates
-    # time_list_type: override default assumptions, specify type of time used in time_list
-    # ref_system: specifies reference frame for any geometric and astrometric quantities
-    # out_units: selects output units for distance and time; for example, AU-D selects astronomical units (au) and days (d)
-    # vec_table: selects vector table format
-    # vec_corr: selects level of correction to output vectors; NONE (geometric states), LT (astrometric light-time corrected states) or LT+S (astrometric states corrected for stellar aberration)
-    # cal_type: Selects Gregorian-only calendar input/output, or mixed Julian/Gregorian, switching on 1582-Oct-5. Recognized for close-approach tables also.
-    # csv_format: toggles output of table in comma-separated value format
-    # vec_labels: toggles labeling of each vector component
-    # vec_delta_t: toggles output of the time-varying delta-T difference TDB-UT
-
     # Optional parameters
     if obj_data is not None:
         query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
@@ -501,69 +446,27 @@ async def vectors_time_range(
         query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
     if step_size_amt is not None and step_size_unit is not None:
         query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
-    # if time_digits is not None:
-    #     query_params["TIME_DIGITS"] = time_digits.name.upper()
-    # if time_list is not None:
-    #     query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, time_list)))
-    # if time_list_type is not None:
-    #     query_params["TLIST_TYPE"] = time_list_type.name.upper()
-    # if ref_system is not None:
-    #     query_params["REF_SYSTEM"] = ref_system.name.upper()
-    # if out_units is not None:
-    #     query_params["OUT_UNITS"] = format_out_units(out_units)
-    # if vec_table is not None:
-    #     query_params["VEC_TABLE"] = f"{vec_table.value}"
-    # if vec_corr is not None:
-    #     query_params["VEC_CORR"] = format_vec_corr(vec_corr)
-    # if cal_type is not None:
-    #     query_params["CAL_TYPE"] = cal_type.name.upper()
-    # if csv_format is not None:
-    #     query_params["CSV_FORMAT"] = format_to_yes_no(csv_format)
-    # if vec_labels is not None:
-    #     query_params["VEC_LABELS"] = format_to_yes_no(vec_labels)
-    # if vec_delta_t is not None:
-    #     query_params["VEC_DELTA_T"] = format_to_yes_no(vec_delta_t)
 
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             return response.json()
         except Exception:
             return None
 
+### OBSERVER EPHEMERIS
+
 @mcp.tool
 async def observer_request(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    #obj_data: Annotated[bool | None, Field(default=False, description="toggles return of object summary data")],
     make_ephem: Annotated[bool | None, Field(default=True, description="toggles generation of ephemeris, if possible")],
-    #center: Annotated[str | None, Field(default=None, description="selects coordinate origin (observing site), format as 'site@body'")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
     site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
     start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
     step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
-    # time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
-    # time_zone: Optional[str] = None,
-    # time_list: Optional[list[str]] = None,
-    # time_list_type: Optional[TimeListType] = None,
-    # ref_system: Optional[ReferenceFrame] = ReferenceFrame.ICRF,
-    # cal_format: Optional[CalendarFormat] = CalendarFormat.CAL,
-    # cal_type: Optional[CalendarType] = CalendarType.MIXED,
-    # ang_format: Optional[AngleFormat] = AngleFormat.HMS,
-    # apparent: Optional[RefractionCorrection] = RefractionCorrection.AIRLESS,
-    # range_units: Optional[DistanceUnits] = DistanceUnits.AU,
-    # suppress_range_rate: Optional[bool] = False,
-    # elev_cut: Optional[int] = -90,
-    # skip_daylt: Optional[bool] = False,
-    # solar_elong: Optional[Tuple[int,int]] = (0,180), 
-    # airmass: Optional[float] = 38.0,
-    # lha_cutoff: Optional[float] = 0.0,
-    # ang_rate_cutoff: Optional[float] = 0.0,
-    # extra_prec: Optional[bool] = False,
-    # csv_format: Optional[bool] = False,
-    # rts_only: Optional[bool] = False,
 ) -> dict[str, Any] | None:
     """
     Outputs sky coordinates like Right Ascension, Declination, Azimuth, and Elevation. 
@@ -579,35 +482,10 @@ async def observer_request(
         "CSV_FORMAT": format_to_yes_no(True)
     }
 
-    # time_digits: controls output time precision
-    # time_zone: specifies local civil time offset relative to UT
-    # time_list: list up to 10,000 discrete output times, either Julian Day numbers (JD), modified Julian Day numbers (MJD), or calendar dates
-    # time_list_type: override default assumptions, specify type of time used in time_list
-    # ref_system: specifies reference frame for any geometric and astrometric quantities
-    # cal_format: selects type of date output; CAL for calendar date/time, JD for Julian Day numbers, or BOTH for both CAL and JD
-    # cal_type: Selects Gregorian-only calendar input/output, or mixed Julian/Gregorian, switching on 1582-Oct-5. Recognized for close-approach tables also.
-    # ang_format: selects RA/DEC output format
-    # apparent: toggles refraction correction of apparent coordinates (Earth topocentric only)
-    # range_units: sets the units on range quantities output
-    # suppress_range_rate: turns off output of delta-dot and rdot (range-rate)
-    # elev_cut: skip output when object elevation is less than specified
-    # skip_daylt: toggles skipping of print-out when daylight at CENTER
-    # solar_elong: sets bounds on output based on solar elongation angle
-    # airmass: select airmass cutoff; output is skipped if relative optical airmass is greater than the single decimal value specified. Note than 1.0=zenith, 38.0 ~= local-horizon. If value is set >= 38.0, this turns OFF the filtering effect.
-    # lha_cutoff: skip output when local hour angle exceeds a specified value in the domain 0.0 < X < 12.0. To restore output (turn OFF the cut-off behavior), set X to 0.0 or 12.0. For example, a cut-off value of 1.5 will output table data only when the LHA is within +/- 1.5 angular hours of zenith meridian.
-    # ang_rate_cutoff: skip output when the total plane-of-sky angular rate exceeds a specified value
-    # extra_prec: toggles additional output digits on some angles such as RA/DEC
-    # csv_format: toggles output of table in comma-separated value format
-    # rts_only: toggles output only at target rise/transit/set
-
     # Optional parameters
-    #if obj_data is not None:
-    #    query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
     query_params["OBJ_DATA"] = format_to_yes_no(False)
     if make_ephem is not None:
         query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
-    #if center is not None:
-    #    query_params["CENTER"] = format_to_single_quote_string(center)
     query_params["CENTER"] = format_to_single_quote_string("coord")
     if coord_type is not None:
         query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
@@ -619,58 +497,20 @@ async def observer_request(
         query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
     if step_size_amt is not None and step_size_unit is not None:
         query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
-    # if time_digits is not None:
-    #     query_params["TIME_DIGITS"] = time_digits.name.upper()
-    # if time_zone is not None:
-    #     query_params["TIME_ZONE"] = format_to_single_quote_string(time_zone)
-    # if time_list is not None:
-    #     query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, time_list)))
-    # if time_list_type is not None:
-    #     query_params["TLIST_TYPE"] = time_list_type.name.upper()
-    # if ref_system is not None:
-    #     query_params["REF_SYSTEM"] = ref_system.name.upper()
-    # if cal_format is not None:
-    #     query_params["CAL_FORMAT"] = cal_format.name.upper()
-    # if cal_type is not None:
-    #     query_params["CAL_TYPE"] = cal_type.name.upper()
-    # if ang_format is not None:
-    #     query_params["ANG_FORMAT"] = ang_format.name.upper()
-    # if apparent is not None:
-    #     query_params["APPARENT"] = apparent.name.upper()
-    # if range_units is not None:
-    #     query_params["RANGE_UNITS"] = range_units.name.upper()
-    # if suppress_range_rate is not None:
-    #     query_params["SUPPRESS_RANGE_RATE"] = format_to_yes_no(suppress_range_rate)
-    # if elev_cut is not None:
-    #     query_params["ELEV_CUT"] = format_to_single_quote_string(elev_cut)
-    # if skip_daylt is not None:
-    #     query_params["SKIP_DAYLT"] = format_to_yes_no(skip_daylt)
-    # if solar_elong is not None:
-    #     query_params["SOLAR_ELONG"] = format_to_single_quote_string(format_to_comma_sep_string(solar_elong))
-    # if airmass is not None:
-    #     query_params["AIRMASS"] = f"{airmass}"
-    # if lha_cutoff is not None:
-    #     query_params["LHA_CUTOFF"] = f"{lha_cutoff}"
-    # if ang_rate_cutoff is not None:
-    #     query_params["ANG_RATE_CUTOFF"] = f"{ang_rate_cutoff}"
-    # if extra_prec is not None:
-    #     query_params["EXTRA_PREC"] = format_to_yes_no(extra_prec)
-    # if csv_format is not None:
-    #     query_params["CSV_FORMAT"] = format_to_yes_no(csv_format)
-    # if rts_only is not None:
-    #     query_params["R_T_S_ONLY"] = format_to_yes_no(rts_only)
 
     async with httpx.AsyncClient() as client:
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
+
+### SPK BINARY FILE
 
 @mcp.tool
 async def spk_request(
@@ -712,10 +552,12 @@ async def spk_request(
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             return response.json()
         except Exception:
             return None
+
+### CLOSE APPROACH
 
 @mcp.tool
 async def close_approach_request(
@@ -761,7 +603,7 @@ async def close_approach_request(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
@@ -769,8 +611,6 @@ async def close_approach_request(
             return None
 
 ### LOOKUP API TO GET THE ID FOR DIFFERENT CELESTIAL BODIES, SPACECRAFT, ETC.
-
-JPL_HORIZONS_LOOKUP_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
 
 class CelestialObjectGroup(StrEnum):
     AST = auto()
@@ -780,6 +620,8 @@ class CelestialObjectGroup(StrEnum):
     SCT = auto()
     MB = auto()
     SB = auto()
+
+### OBJECT ID LOOKUP
 
 @mcp.tool
 async def lookup_object_id(
@@ -808,7 +650,7 @@ async def lookup_object_id(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_LOOKUP_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
@@ -817,8 +659,6 @@ async def lookup_object_id(
 
 
 ### FIREBALL TO ACCESS METEOR AND BOLIDE EVENTS
-
-JPL_FIREBALL_BASE_URL = "https://ssd-api.jpl.nasa.gov/fireball.api"
 
 class FireballSortComponent(StrEnum):
     DATE = auto()
@@ -830,6 +670,8 @@ class FireballSortComponent(StrEnum):
 class SortOrder(StrEnum):
     ASCENDING = auto()
     DESCENDING = auto()
+
+### FIREBALL EVENTS
 
 @mcp.tool
 async def fireball_event_lookup(
@@ -895,7 +737,7 @@ async def fireball_event_lookup(
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_FIREBALL_BASE_URL, params=query_params)
-            response.raise_for_status()
+            verify_response(response)
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
