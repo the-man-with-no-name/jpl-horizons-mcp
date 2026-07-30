@@ -500,16 +500,16 @@ async def vectors_time_range(
 
 @mcp.tool
 async def observer_request(
-    command: str,
-    obj_data: Optional[bool] = False,
-    make_ephem: Optional[bool] = True,
-    center: Optional[str] = None,
-    coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
-    site_coord: Optional[tuple[float,float,float]] = (0.0,0.0,0.0),
-    start_time: Optional[datetime] = None,
-    stop_time: Optional[datetime] = None,
-    step_size_amt: Optional[int] = None,
-    step_size_unit: Optional[TimeStep] = None,
+    command: Annotated[str, Field(description="target search, selection, or enter user-input object mode")],
+    obj_data: Annotated[bool | None, Field(default=False, description="toggles return of object summary data")],
+    make_ephem: Annotated[bool | None, Field(default=True, description="toggles generation of ephemeris, if possible")],
+    center: Annotated[str | None, Field(default=None, description="selects coordinate origin (observing site), format as 'site@body'")],
+    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
+    site_coord: Annotated[tuple[float,float,float] | None, Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time")],
+    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time")],
+    step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
+    step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
     # time_digits: Optional[TimeDigits] = TimeDigits.MINUTES,
     # time_zone: Optional[str] = None,
     # time_list: Optional[list[str]] = None,
@@ -535,17 +535,6 @@ async def observer_request(
     Outputs sky coordinates like Right Ascension, Declination, Azimuth, and Elevation. 
     It tells you exactly where a telescope must point to see the object, accounting 
     for factors like atmospheric refraction and Earth's rotation.
-
-    Args:
-        command: target search, selection, or enter user-input object mode
-        obj_data: toggles return of object summary data
-        make_ephem: toggles generation of ephemeris, if possible
-        center: selects coordinate origin (observing site), format as "site@body"
-        coord_type: selects type of user coordinates
-        start_time: specifies ephemeris start time, format as "%Y-%b-%d %H:%M:%S.%f"
-        stop_time: specifies ephemeris stop time, format as "%Y-%b-%d %H:%M:%S.%f"
-        step_size_amt: magnitude of ephemeris time step
-        step_size_unit: units of ephemeris time step
     """
 
     # Build the query parameters
