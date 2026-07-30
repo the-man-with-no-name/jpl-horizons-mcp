@@ -725,8 +725,12 @@ async def close_approach_request(
 
     async with httpx.AsyncClient() as client:
         try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             response.raise_for_status()
+            print("DEBUG: Tool response payload structure:", file=sys.stderr)
+            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
@@ -768,8 +772,12 @@ async def lookup_object_id(
 
     async with httpx.AsyncClient() as client:
         try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_LOOKUP_BASE_URL, params=query_params)
             response.raise_for_status()
+            print("DEBUG: Tool response payload structure:", file=sys.stderr)
+            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
@@ -851,8 +859,12 @@ async def fireball_event_lookup(
 
     async with httpx.AsyncClient() as client:
         try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
             response = await client.get(JPL_FIREBALL_BASE_URL, params=query_params)
             response.raise_for_status()
+            print("DEBUG: Tool response payload structure:", file=sys.stderr)
+            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
