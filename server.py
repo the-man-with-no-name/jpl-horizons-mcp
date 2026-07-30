@@ -496,9 +496,9 @@ async def vectors_time_range(
     if site_coord is not None:
         query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
     if start_time is not None:
-        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
+        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(start_time))
     if stop_time is not None:
-        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
+        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
     if step_size_amt is not None and step_size_unit is not None:
         query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
     # if time_digits is not None:
@@ -614,9 +614,9 @@ async def observer_request(
     if site_coord is not None:
         query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
     if start_time is not None:
-        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
+        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(start_time))
     if stop_time is not None:
-        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
+        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
     if step_size_amt is not None and step_size_unit is not None:
         query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
     # if time_digits is not None:
