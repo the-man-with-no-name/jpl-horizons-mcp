@@ -686,28 +686,19 @@ async def spk_request(
 
 @mcp.tool
 async def close_approach_request(
-    command: str,
-    obj_data: Optional[bool] = False,
-    make_ephem: Optional[bool] = True,
-    CaTableType: Optional[CaTableTypeEnum] = CaTableTypeEnum.STANDARD,
-    Tca3sgLimit: Optional[int] = 14400,
-    CalimSb: Optional[float] = 0.05,
-    CalimPl: Optional[Tuple[float, float, float, float, float, float, float, float, float, float]] = (0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 1.0, 1.0, 0.1, 0.003),
+    command: Annotated[str, Field(description="target search, selection, or enter user-input object mode")],
+    obj_data: Annotated[bool | None, Field(default=False, description="toggles return of object summary data")],
+    make_ephem: Annotated[bool | None, Field(default=True, description="toggles generation of ephemeris, if possible")],
+    CaTableType: Annotated[CaTableTypeEnum | None, Field(default=CaTableTypeEnum.STANDARD, description="Extended close-approach tables include Julian Day numbers. B-plane information is also output if there is a covariance for the object stored in the system database or specified with user-input elements.")],
+    Tca3sgLimit: Annotated[int | None, Field(default=14400, description="maximum computed 3-sigma uncertainty in time of Earth close-approach")],
+    CalimSb: Annotated[float | None, Field(default=0.05, description="sets the spherical radius within which the nominal target must pass one of the perturbing asteroids (Ceres, Pallas, Vesta, etc.) to activate close-approach flagging")],
+    CalimPl: Annotated[Tuple[float, float, float, float, float, float, float, float, float, float] | None, Field(default=(0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 1.0, 1.0, 0.1, 0.003), description="sets the spherical radius within which the nominal target must pass one of the planets (or the Moon) to activate close-approach flagging, in the order: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto, and Moon")],
 ) -> dict[str, Any] | None:
     """
     Generate a discrete list of closest-encounter events. 
     Instead of showing where an object is every hour or day, 
     it filters the data to show only the specific moments an 
     asteroid or comet flies past a planet or major moon.
-
-    Args:
-        command: target search, selection, or enter user-input object mode
-        obj_data: toggles return of object summary data
-        make_ephem: toggles generation of ephemeris, if possible
-        CaTableType: Extended close-approach tables include Julian Day numbers. B-plane information is also output if there is a covariance for the object stored in the system database or specified with user-input elements.
-        Tacs3sgLimit: maximum computed 3-sigma uncertainty in time of Earth close-approach
-        CalimSb: sets the spherical radius within which the nominal target must pass one of the perturbing asteroids (Ceres, Pallas, Vesta, etc.) to activate close-approach flagging
-        CalimPl: sets the spherical radius within which the nominal target must pass one of the planets (or the Moon) to activate close-approach flagging, in the order: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto, and Moon
     """
     
     # Build the query parameters
