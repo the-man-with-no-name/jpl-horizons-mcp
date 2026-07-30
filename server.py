@@ -27,6 +27,7 @@ from functools import reduce
 @TODO: Add result parsing, LLMs have a hard time parsing the raw text result,
         ephemeris is located between $$SOE and $$EOE tags and can request
         CSV_FORMAT=YES for easier parsing
+@TODO: Separate object data into a different request tool
 """
 
 
@@ -273,6 +274,36 @@ async def _make_request(
         except Exception:
             return None
 
+@mcp.tool
+async def get_astronomical_object_data(
+    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
+) -> dict[str, Any] | None:
+    """
+    Obtain information about the target body.
+    """
+
+    # Build the query parameters
+    query_params = {
+        "format": "json",
+        "COMMAND": "'" + command + "'",
+        "EPHEM_TYPE": "'" + Ephemeris.OBSERVER.name.upper() + "'",
+        "CSV_FORMAT": format_to_yes_no(True),
+        "MAKE_EPHEM": format_to_yes_no(False),
+        "OBJ_DATA": format_to_yes_no(True),
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
+            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response.raise_for_status()
+            print("DEBUG: Tool response payload structure:", file=sys.stderr)
+            print(response.json(), file=sys.stderr)
+            return response.json()
+        except Exception:
+            return None
+
 #@mcp.tool
 async def elements_request(
     command: str,
@@ -504,7 +535,7 @@ async def vectors_time_range(
 @mcp.tool
 async def observer_request(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    obj_data: Annotated[bool | None, Field(default=False, description="toggles return of object summary data")],
+    #obj_data: Annotated[bool | None, Field(default=False, description="toggles return of object summary data")],
     make_ephem: Annotated[bool | None, Field(default=True, description="toggles generation of ephemeris, if possible")],
     #center: Annotated[str | None, Field(default=None, description="selects coordinate origin (observing site), format as 'site@body'")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
@@ -544,7 +575,8 @@ async def observer_request(
     query_params = {
         "format": "json",
         "COMMAND": "'" + command + "'",
-        "EPHEM_TYPE": "'" + Ephemeris.OBSERVER.name.upper() + "'"
+        "EPHEM_TYPE": "'" + Ephemeris.OBSERVER.name.upper() + "'",
+        "CSV_FORMAT": format_to_yes_no(True)
     }
 
     # time_digits: controls output time precision
@@ -569,8 +601,9 @@ async def observer_request(
     # rts_only: toggles output only at target rise/transit/set
 
     # Optional parameters
-    if obj_data is not None:
-        query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
+    #if obj_data is not None:
+    #    query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
+    query_params["OBJ_DATA"] = format_to_yes_no(False)
     if make_ephem is not None:
         query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
     #if center is not None:
