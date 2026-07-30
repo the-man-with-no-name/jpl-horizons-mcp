@@ -70,9 +70,9 @@ def format_to_custom_datetime(dt_obj: datetime) -> str:
     return base_str[:-3]
 
 def format_to_custom_datetime_no_ms(dt_obj: datetime) -> str:
-    # %Y = Year, %b = Abbreviated month name (e.g., Jul), %d = Day
+    # %Y = Year, %m = Month, %d = Day
     # %H = Hour (24h), %M = Minute, %S = Second
-    base_str = dt_obj.strftime("%Y-%b-%d %H:%M:%S")
+    base_str = dt_obj.strftime("%Y-%m-%dT%H:%M:%S")
     # Slice off the last 3 digits of microseconds to enforce milliseconds (.fff)
     return base_str
 
