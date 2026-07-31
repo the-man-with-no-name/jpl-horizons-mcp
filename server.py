@@ -1,21 +1,22 @@
 import httpx
 import urllib.parse
 import sys
+import re
 from fastmcp import FastMCP
-from typing import Any, Optional, Tuple, Protocol, Annotated, Literal
+from typing import Any, Tuple, Annotated
 from pydantic import Field
 from enum import Enum, StrEnum, auto
-from dataclasses import dataclass
 from datetime import datetime
 from functools import reduce
 
 """
-@TODO: For some reason, nested calls to make the request are failing. 
-    Put request logic within tool function.
-    Fixed for:
-    x   - Horizons API  
-    x       - Observer
+@TODO: Implement tools for:
+    x   - Horizons API
+    ✓       - Astronomical Data
+    ✓       - Observer
     ✓       - Vectors
+    ✓           - time list
+    ✓          - time range
     ✓       - Elements
     ✓       - Spk
     ✓       - Approach
@@ -23,7 +24,6 @@ from functools import reduce
     ✓   - Fireball API
 
 @TODO: Fix handling of datetime params to enforce ISO 8601
-@TODO: Elements and Observer request may be swapped, check and fix
 @TODO: Add result parsing, LLMs have a hard time parsing the raw text result,
         ephemeris is located between $$SOE and $$EOE tags and can request
         CSV_FORMAT=YES for easier parsing
@@ -32,10 +32,6 @@ from functools import reduce
 
 ### API INFORMATION
 
-class ApiVersionError(Exception):
-    """Exception raised when response version does not match support version"""
-    pass
-
 JPL_FIREBALL_BASE_URL = "https://ssd-api.jpl.nasa.gov/fireball.api"
 JPL_HORIZONS_LOOKUP_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
 JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
@@ -43,28 +39,17 @@ JPL_HORIZONS_API_SUPPORT_VERSION = "1.2"
 JPL_FIREBALL_API_SUPPORT_VERSION = "1.2"
 JPL_LOOKUP_API_SUPPORT_VERSION = "1.1"
 
-def verify_api_version(response_json: Any, support_version: str) -> None:
-    response_version = response_json["signature"]["version"]
-    if response_version != support_version:
-        raise ApiVersionError(f"API response version {response_version} does not match support version {JPL_HORIZONS_API_SUPPORT_VERSION}")
+### Exceptions
 
-def verify_response(response: httpx.Response, support_version: str) -> None:
-    response.raise_for_status()
-    print("DEBUG: Tool response payload structure:", file=sys.stderr)
-    print(response.json(), file=sys.stderr)
-    verify_api_version(response.json(), support_version)
+class ApiVersionError(Exception):
+    """Exception raised when response version does not match support version"""
+    pass
 
 ### INTERNAL UTILITIES
-    
-class BinaryResponse(StrEnum):
-    YES = auto()
-    NO = auto()
 
-class Stringable(Protocol):
-    def __str__(self) -> str:
-        ...
+# FORMATTING
 
-def format_escape_char_url(value) -> str:
+def format_escape_char_url(value: str) -> str:
     return urllib.parse.quote(value)
 
 def format_out_units(value) -> str:
@@ -78,7 +63,7 @@ def format_out_units(value) -> str:
         case _:
             return "KM-S"
 
-def format_vec_corr(value) -> str:
+def format_vec_corr(value: VecCorr) -> str:
     match value:
         case VecCorr.NONE:
             return "NONE"
@@ -118,10 +103,23 @@ def format_to_yes_no(value: bool) -> str:
 def format_to_upper(value: StrEnum) -> str:
     return value.name.upper()
 
-def format_bool(val: bool) -> BinaryResponse:
-    if val:
-        return BinaryResponse.YES
-    return BinaryResponse.NO
+# VERIFICATION
+
+def verify_api_version(response_json: Any, support_version: str) -> None:
+    response_version = response_json["signature"]["version"]
+    if response_version != support_version:
+        raise ApiVersionError(f"API response version {response_version} does not match support version {JPL_HORIZONS_API_SUPPORT_VERSION}")
+
+def verify_response(response: httpx.Response, support_version: str) -> None:
+    response.raise_for_status()
+    print("DEBUG: Tool response payload structure:", file=sys.stderr)
+    print(response.json(), file=sys.stderr)
+    verify_api_version(response.json(), support_version)
+
+# PARSING
+
+def parse_ephemeris(data: str) -> list[str]:
+    return re.split(r'\$SOE|\$EOE', data)
 
 ### HORIZONS API FOR LOCATIONS
 
@@ -204,96 +202,9 @@ class DistanceUnits(StrEnum):
     AU = auto()
     KM = auto()
 
-class EphemDataBase:
-    pass
-
-@dataclass
-class Observer(EphemDataBase):
-    Center: CenterEnum
-    CoordType: CoordTypeEnum
-    SiteCoord: Tuple[float, float, float]
-    StartTime: datetime
-    StopTime: datetime
-    #StepSize:
-    TimeDigits: TimeDigits
-    #TimeZone: str
-    #TList
-    #TListType
-    #Quantities:
-    RefSystem: ReferenceFrame
-    CalFormat: CalendarFormat
-    CalType: CalendarType
-    AngFormat: AngleFormat
-    Apparent: RefractionCorrection
-    RangeUnits: DistanceUnits
-    SuppressRangeRate: bool
-    ElevCut: int = -90
-    SkipDaylt: bool = False
-    #SolarElong: str
-    Airmass: float = 38.0
-    LhaCutoff: float = 0.0
-    AngRateCutoff: float = 0.0
-    ExtraPrec: bool = False
-    CsvFormat: bool = False
-    RTSOnly: bool = False
-
-@dataclass
-class Vectors(EphemDataBase):
-    Center: CenterEnum
-
-@dataclass
-class Elements(EphemDataBase):
-    Center: CenterEnum
-
-@dataclass
-class Spk(EphemDataBase):
-    StartTime: str
-    StopTime: str
-
-@dataclass
-class Approach(EphemDataBase):
-    CaTableType: CaTableTypeEnum
-    Tca3sgLimit: int = 14400
-    CalimSb: float = 0.05
-    CalimPl: Tuple[float, float, float, float, float, float, float, float, float, float] = (0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 1.0, 1.0, 0.1, 0.003)
+### MCP Definition
 
 mcp = FastMCP("jpl-horizons-mcp-server")
-
-async def _make_request(
-    url: str,
-    command: str,
-    obj_data: bool,
-    make_ephem: bool,
-    ephem_type: Ephemeris,
-    ephem_data: EphemDataBase
-) -> dict[str, Any] | None:
-    """
-    Access the JPL Horizons system. The Horizons system is an ephemeris system
-    providing acccess to solar system data and customizable production of 
-    accurate ephemerides for observers, mission-planners, researchers, and the 
-    public, by numerically characterizing the location, motion, and
-    observability of solar system objects as a function of time, as seen from
-    locations within the solar system.
-
-    Arguments:
-        command: name or id of the target body
-        obj_data: toggles return of object summary data
-        make_ephem: togges generation of ephemeris, if possible
-        ephem_type: selects type of ephemeris to generate
-    """
-    
-    # Build the query parameters
-    query_params = {
-        "format": "json",
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, params=query_params)
-            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
-            return response.json()
-        except Exception:
-            return None
 
 ### ASTRONOMICAL DATA
 
@@ -302,7 +213,7 @@ async def get_astronomical_object_data(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
 ) -> dict[str, Any] | None:
     """
-    Obtain information about the target body.
+    Retrieve astronomical object data for the specified target body.
     """
 
     # Build the query parameters
@@ -329,65 +240,85 @@ async def get_astronomical_object_data(
 
 ### ELEMENTS EPHEMERIS
 
-#@mcp.tool
-async def elements_request(
-    command: str,
-    obj_data: bool,
-    make_ephem: bool,
-    observer_data: Observer
+@mcp.tool
+async def elements_time_range(
+    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
+    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
+    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
+    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
+    step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
+    step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
 ) -> dict[str, Any] | None:
     """
-    Determine geometric orbital parameters (eccentricity, inclination) for the specified command. 
+    Retrieve geometric orbital parameters (eccentricity, inclination) for the specified command. 
     Geometric orbital parameters describe the overall mathematical shape of the path, 
     not an active position or visual viewing angle.
-    """
-    return await _make_request(JPL_HORIZONS_BASE_URL, command, obj_data, make_ephem, Ephemeris.ELEMENTS, observer_data)
-
-### VECTORS EPHEMERIS
-
-@mcp.tool
-async def vectors_time_list(
-    command: str,
-    obj_data: Optional[bool] = False,
-    make_ephem: Optional[bool] = True,
-    center: Optional[str] = None,
-    coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
-    site_coord: Optional[tuple[float,float,float]] = (0.0,0.0,0.0),
-    time_list: Optional[list[str]] = None,
-) -> dict[str, Any] | None:
-    """
-    Obtain raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
-    This treats the solar system like a massive grid, ignoring how things look from the ground.
-
-    Args:
-        command: target search, selection, or enter user-input object mode
-        obj_data: toggles return of object summary data
-        make_ephem: toggles generation of ephemeris, if possible
-        center: selects coordinate origin (observing site), format as "site@body"
-        coord_type: selects type of user coordinates
-        time_list: list up to 10,000 discrete output times as calendar dates, format as "%Y-%b-%d %H:%M:%S.%f"
     """
 
     # Build the query parameters
     query_params = {
         "format": "json",
         "COMMAND": "'" + command + "'",
-        "EPHEM_TYPE": "'" + Ephemeris.VECTORS.name.upper() + "'"
+        "EPHEM_TYPE": "'" + Ephemeris.ELEMENTS.name.upper() + "'",
+        "CSV_FORMAT": format_to_yes_no(True),
+        "OBJ_DATA": format_to_yes_no(False),
+        "CENTER": format_to_single_quote_string("coord"),
+        "MAKE_EPHEM": format_to_yes_no(True),
     }
 
     # Optional parameters
-    if obj_data is not None:
-        query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
-    if make_ephem is not None:
-        query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
-    if center is not None:
-        query_params["CENTER"] = format_to_single_quote_string(center)
+    if coord_type is not None:
+        query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
+    if site_coord is not None:
+        query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
+    if start_time is not None:
+        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(start_time))
+    if stop_time is not None:
+        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
+    if step_size_amt is not None and step_size_unit is not None:
+        query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
+            return response.json()
+        except Exception:
+            return None
+
+### VECTORS EPHEMERIS
+
+@mcp.tool
+async def vectors_time_list(
+    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
+    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
+    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    time_list: Annotated[list[datetime] | None, Field(default=None, description="list up to 10,000 discrete output times as calendar dates, format as '%Y-%b-%d %H:%M:%S.%f'")],
+) -> dict[str, Any] | None:
+    """
+    Retrieve raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
+    This treats the solar system like a massive grid, ignoring how things look from the ground.
+    """
+
+    # Build the query parameters
+    query_params = {
+        "format": "json",
+        "COMMAND": "'" + command + "'",
+        "EPHEM_TYPE": "'" + Ephemeris.VECTORS.name.upper() + "'",
+        "CSV_FORMAT": format_to_yes_no(True),
+        "OBJ_DATA": format_to_yes_no(False),
+        "CENTER": format_to_single_quote_string("coord"),
+        "MAKE_EPHEM": format_to_yes_no(True),
+    }
+
+    # Optional parameters
     if coord_type is not None:
         query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
     if site_coord is not None:
         query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
     if time_list is not None:
-        query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, time_list)))
+        query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, map(format_to_custom_datetime_no_ms, time_list))))
 
     async with httpx.AsyncClient() as client:
         try:
@@ -399,47 +330,31 @@ async def vectors_time_list(
         
 @mcp.tool
 async def vectors_time_range(
-    command: str,
-    obj_data: Optional[bool] = False,
-    make_ephem: Optional[bool] = True,
-    center: Optional[str] = None,
-    coord_type: Optional[CoordTypeEnum] = CoordTypeEnum.GEODETIC,
-    site_coord: Optional[tuple[float,float,float]] = (0.0,0.0,0.0),
-    start_time: Optional[datetime] = None,
-    stop_time: Optional[datetime] = None,
-    step_size_amt: Optional[int] = None,
-    step_size_unit: Optional[TimeStep] = None,
+    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
+    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
+    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
+    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
+    step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
+    step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
 ) -> dict[str, Any] | None:
     """
-    Obtain raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
+    Retrieve raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
     This treats the solar system like a massive grid, ignoring how things look from the ground.
-
-    Args:
-        command: target search, selection, or enter user-input object mode
-        obj_data: toggles return of object summary data
-        make_ephem: toggles generation of ephemeris, if possible
-        center: selects coordinate origin (observing site), format as "site@body"
-        coord_type: selects type of user coordinates
-        start_time: specifies ephemeris start time, format as "%Y-%b-%d %H:%M:%S.%f"
-        stop_time: specifies ephemeris stop time, format as "%Y-%b-%d %H:%M:%S.%f"
-        step_size_amt: magnitude of ephemeris time step
-        step_size_unit: units of ephemeris time step
     """
 
     # Build the query parameters
     query_params = {
         "format": "json",
         "COMMAND": "'" + command + "'",
-        "EPHEM_TYPE": "'" + Ephemeris.VECTORS.name.upper() + "'"
+        "EPHEM_TYPE": "'" + Ephemeris.VECTORS.name.upper() + "'",
+        "CSV_FORMAT": format_to_yes_no(True),
+        "OBJ_DATA": format_to_yes_no(False),
+        "CENTER": format_to_single_quote_string("coord"),
+        "MAKE_EPHEM": format_to_yes_no(True),
     }
 
     # Optional parameters
-    if obj_data is not None:
-        query_params["OBJ_DATA"] = format_to_yes_no(obj_data)
-    if make_ephem is not None:
-        query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
-    if center is not None:
-        query_params["CENTER"] = format_to_single_quote_string(center)
     if coord_type is not None:
         query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
     if site_coord is not None:
@@ -464,7 +379,6 @@ async def vectors_time_range(
 @mcp.tool
 async def observer_request(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    make_ephem: Annotated[bool | None, Field(default=True, description="toggles generation of ephemeris, if possible")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
     site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
     start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
@@ -473,7 +387,7 @@ async def observer_request(
     step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
 ) -> dict[str, Any] | None:
     """
-    Outputs sky coordinates like Right Ascension, Declination, Azimuth, and Elevation. 
+    Retrieve sky coordinates like Right Ascension, Declination, Azimuth, and Elevation. 
     It tells you exactly where a telescope must point to see the object, accounting 
     for factors like atmospheric refraction and Earth's rotation.
     """
@@ -483,14 +397,13 @@ async def observer_request(
         "format": "json",
         "COMMAND": "'" + command + "'",
         "EPHEM_TYPE": "'" + Ephemeris.OBSERVER.name.upper() + "'",
-        "CSV_FORMAT": format_to_yes_no(True)
+        "CSV_FORMAT": format_to_yes_no(True),
+        "OBJ_DATA": format_to_yes_no(False),
+        "CENTER": format_to_single_quote_string("coord"),
+        "MAKE_EPHEM": format_to_yes_no(True),
     }
 
     # Optional parameters
-    query_params["OBJ_DATA"] = format_to_yes_no(False)
-    if make_ephem is not None:
-        query_params["MAKE_EPHEM"] = format_to_yes_no(make_ephem)
-    query_params["CENTER"] = format_to_single_quote_string("coord")
     if coord_type is not None:
         query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
     if site_coord is not None:
@@ -508,8 +421,6 @@ async def observer_request(
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
-            print("DEBUG: Tool response payload structure:", file=sys.stderr)
-            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
@@ -518,40 +429,29 @@ async def observer_request(
 
 @mcp.tool
 async def spk_request(
-    command: str,
-    obj_data: Optional[bool] = False,
-    make_ephem: Optional[bool] = True,
-    start_time: Optional[datetime] = None,
-    stop_time: Optional[datetime] = None,
+    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
+    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
+    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
 ) -> dict[str, Any] | None:
     """
     Download a time-continuous binary SPICE Kernel (SPK) file (.bsp) 
     containing high-precision trajectory and orbit data for a specific solar system body.
-
-    Args:
-        command: target search, selection, or enter user-input object mode
-        obj_data: toggles return of object summary data
-        make_ephem: toggles generation of ephemeris, if possible
-        start_time: specifies ephemeris start time, format as "%Y-%b-%d %H:%M:%S.%f"
-        stop_time: specifies ephemeris stop time, format as "%Y-%b-%d %H:%M:%S.%f"
     """
 
     # Build the query parameters
     query_params = {
         "format": "json",
         "COMMAND": "'" + command + "'",
-        "EPHEM_TYPE": "'" + Ephemeris.SPK.name.upper() + "'"
+        "EPHEM_TYPE": "'" + Ephemeris.SPK.name.upper() + "'",
+        "OBJ_DATA": format_to_yes_no(True),
+        "MAKE_EPHEM": format_to_yes_no(True),
     }
 
     # Optional parameters
-    if obj_data is not None:
-        query_params["OBJ_DATA"] = "'YES'" if obj_data else "'NO'"
-    if make_ephem is not None:
-        query_params["MAKE_EPHEM"] = "'YES'" if make_ephem else "'NO'"
     if start_time is not None:
-        query_params["START_TIME"] = f"'{format_to_custom_datetime(start_time)}'"
+        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
     if stop_time is not None:
-        query_params["STOP_TIME"] = f"'{format_to_custom_datetime(stop_time)}'"
+        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
 
     async with httpx.AsyncClient() as client:
         try:
@@ -566,8 +466,6 @@ async def spk_request(
 @mcp.tool
 async def close_approach_request(
     command: Annotated[str, Field(description="target search, selection, or enter user-input object mode")],
-    obj_data: Annotated[bool | None, Field(default=False, description="toggles return of object summary data")],
-    make_ephem: Annotated[bool | None, Field(default=True, description="toggles generation of ephemeris, if possible")],
     CaTableType: Annotated[CaTableTypeEnum | None, Field(default=CaTableTypeEnum.STANDARD, description="Extended close-approach tables include Julian Day numbers. B-plane information is also output if there is a covariance for the object stored in the system database or specified with user-input elements.")],
     Tca3sgLimit: Annotated[int | None, Field(default=14400, description="maximum computed 3-sigma uncertainty in time of Earth close-approach")],
     CalimSb: Annotated[float | None, Field(default=0.05, description="sets the spherical radius within which the nominal target must pass one of the perturbing asteroids (Ceres, Pallas, Vesta, etc.) to activate close-approach flagging")],
@@ -584,23 +482,21 @@ async def close_approach_request(
     query_params = {
         "format": "json",
         "COMMAND": "'" + command + "'",
-        "EPHEM_TYPE": "'" + Ephemeris.APPROACH.name.upper() + "'"
+        "EPHEM_TYPE": "'" + Ephemeris.APPROACH.name.upper() + "'",
+        "MAKE_EPHEM": format_to_yes_no(True),
+        "OBJ_DATA": format_to_yes_no(False),
     }
 
     # Optional parameters
-    if obj_data is not None:
-        query_params["OBJ_DATA"] = "'YES'" if obj_data else "'NO'"
-    if make_ephem is not None:
-        query_params["MAKE_EPHEM"] = "'YES'" if make_ephem else "'NO'"
     if CaTableType is not None:
-        query_params["CA_TABLE_TYPE"] = f"'{CaTableType.name.upper()}'"
+        query_params["CA_TABLE_TYPE"] = format_to_single_quote_string(CaTableType.name.upper())
     if Tca3sgLimit is not None:
-        query_params["TCA3SG_LIMIT"] = f"'{Tca3sgLimit}'"
+        query_params["TCA3SG_LIMIT"] = format_to_single_quote_string(Tca3sgLimit)
     if CalimSb is not None:
-        query_params["CALIM_SB"] = f"'{CalimSb}'"
+        query_params["CALIM_SB"] = format_to_single_quote_string(CalimSb)
     if CalimPl is not None:
         AsStr = ",".join(map(str, CalimPl))
-        query_params["CALIM_PL"] = f"'{AsStr}'"
+        query_params["CALIM_PL"] = format_to_single_quote_string(AsStr)
 
     async with httpx.AsyncClient() as client:
         try:
@@ -608,8 +504,6 @@ async def close_approach_request(
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
-            print("DEBUG: Tool response payload structure:", file=sys.stderr)
-            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
@@ -655,8 +549,6 @@ async def lookup_object_id(
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_LOOKUP_BASE_URL, params=query_params)
             verify_response(response, JPL_LOOKUP_API_SUPPORT_VERSION)
-            print("DEBUG: Tool response payload structure:", file=sys.stderr)
-            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
@@ -667,13 +559,28 @@ async def lookup_object_id(
 class FireballSortComponent(StrEnum):
     DATE = auto()
     ENERGY = auto()
-    #IMPACTENERGY = auto()
+    IMPACT = auto()
     VEL = auto()
     ALT = auto()
 
 class SortOrder(StrEnum):
     ASCENDING = auto()
     DESCENDING = auto()
+
+def format_fireball_sort_component(sort_component: FireballSortComponent) -> str:
+    match sort_component:
+        case FireballSortComponent.DATE:
+            return "date"
+        case FireballSortComponent.ENERGY:
+            return "energy"
+        case FireballSortComponent.IMPACT:
+            return "impact-e"
+        case FireballSortComponent.VEL:
+            return "vel"
+        case FireballSortComponent.ALT:
+            return "alt"
+        case _:
+            return "date"
 
 ### FIREBALL EVENTS
 
@@ -729,7 +636,7 @@ async def fireball_event_lookup(
     if velocity_component is not None:
         query_params["vel-comp"] = str(velocity_component).lower()
     if sort_component is not None:
-        query_params["sort"] = str(sort_component)
+        query_params["sort"] = format_fireball_sort_component(sort_component)
     if sort_order is not None:
         if sort_order == SortOrder.DESCENDING:
             query_params["sort"] = "-" + query_params["sort"]
@@ -742,8 +649,6 @@ async def fireball_event_lookup(
             print(query_params, file=sys.stderr)
             response = await client.get(JPL_FIREBALL_BASE_URL, params=query_params)
             verify_response(response, JPL_FIREBALL_API_SUPPORT_VERSION)
-            print("DEBUG: Tool response payload structure:", file=sys.stderr)
-            print(response.json(), file=sys.stderr)
             return response.json()
         except Exception:
             return None
