@@ -244,7 +244,7 @@ async def get_astronomical_object_data(
 async def elements_time_range(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
     start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
@@ -293,7 +293,7 @@ async def elements_time_range(
 async def vectors_time_list(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
     time_list: Annotated[list[datetime] | None, Field(default=None, description="list up to 10,000 discrete output times as calendar dates, format as '%Y-%b-%d %H:%M:%S.%f'")],
 ) -> dict[str, Any] | None:
     """
@@ -334,7 +334,7 @@ async def vectors_time_list(
 async def vectors_time_range(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
     start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
@@ -384,7 +384,7 @@ async def vectors_time_range(
 async def observer_request(
     command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
     coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[tuple[float,float,float], Field(default=(0.0,0.0,0.0), description="coordinates of observer in '(longitude, latitude, elevation)'")],
+    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
     start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
     step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
