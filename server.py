@@ -322,6 +322,8 @@ async def vectors_time_list(
 
     async with httpx.AsyncClient() as client:
         try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
@@ -368,6 +370,8 @@ async def vectors_time_range(
 
     async with httpx.AsyncClient() as client:
         try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
@@ -455,6 +459,8 @@ async def spk_request(
 
     async with httpx.AsyncClient() as client:
         try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
             response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
