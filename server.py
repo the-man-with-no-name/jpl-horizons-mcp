@@ -50,7 +50,7 @@ class ApiVersionError(Exception):
 # FORMATTING
 
 def format_escape_char_url(value: str) -> str:
-    return urllib.parse.quote(value)
+    return urllib.parse.quote(value, safe=":")
 
 def format_out_units(value) -> str:
     match value:
@@ -318,7 +318,7 @@ async def vectors_time_list(
     if site_coord is not None:
         query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
     if time_list is not None:
-        query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, map(format_to_custom_datetime_no_ms, time_list))))
+        query_params["TLIST"] = format_escape_char_url(format_to_space_sep_string(map(format_to_custom_datetime, time_list)))
 
     async with httpx.AsyncClient() as client:
         try:
