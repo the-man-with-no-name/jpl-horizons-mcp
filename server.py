@@ -108,7 +108,10 @@ def format_to_upper(value: StrEnum) -> str:
 def verify_api_version(response_json: Any, support_version: str) -> None:
     response_version = response_json["signature"]["version"]
     if response_version != support_version:
-        raise ApiVersionError(f"API response version {response_version} does not match support version {JPL_HORIZONS_API_SUPPORT_VERSION}")
+        raise ApiVersionError(
+            f"API response version {response_version} does not" 
+            "match support version {JPL_HORIZONS_API_SUPPORT_VERSION}"
+        )
 
 def verify_response(response: httpx.Response, support_version: str) -> None:
     response.raise_for_status()
@@ -210,7 +213,13 @@ mcp = FastMCP("jpl-horizons-mcp-server")
 
 @mcp.tool
 async def get_astronomical_object_data(
-    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
+    command: Annotated[
+        str, 
+        Field(
+            description="Identifier of the target body to observe. "
+            "Use lookup_object_id first to determine the ID number."
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
     Retrieve astronomical object data for the specified target body.
@@ -230,8 +239,14 @@ async def get_astronomical_object_data(
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
+            response = await client.get(
+                JPL_HORIZONS_BASE_URL, 
+                params=query_params
+            )
+            verify_response(
+                response, 
+                JPL_HORIZONS_API_SUPPORT_VERSION
+            )
             print("DEBUG: Tool response payload structure:", file=sys.stderr)
             print(response.json(), file=sys.stderr)
             return response.json()
@@ -242,18 +257,64 @@ async def get_astronomical_object_data(
 
 @mcp.tool
 async def elements_time_range(
-    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
-    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
-    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
-    step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
-    step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
+    command: Annotated[
+        str, 
+        Field(
+            description="Identifier of the target body to observe. "
+            "Use lookup_object_id first to determine the ID number."
+        )
+    ],
+    coord_type: Annotated[
+        CoordTypeEnum | None, 
+        Field(
+            default=CoordTypeEnum.GEODETIC, 
+            description="Select type of user coordinates."
+        )
+    ],
+    site_coord: Annotated[
+        list[float], 
+        Field(
+            default=[0.0,0.0,0.0], 
+            description="List of 3 numbers representing the coordinates "
+            "of the observer as [longitude, latitude, elevation]"
+        )
+    ],
+    start_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="Specify ephemeris start time, "
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
+    stop_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="Specify ephemeris stop time, "
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
+    step_size_amt: Annotated[
+        int | None, 
+        Field(
+            default=None, 
+            description="Magnitude of ephemeris time steps."
+        )
+    ],
+    step_size_unit: Annotated[
+        TimeStep | None, 
+        Field(
+            default=None, 
+            description="Units of ephemeris time steps."
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
-    Retrieve geometric orbital parameters (eccentricity, inclination) for the specified command. 
-    Geometric orbital parameters describe the overall mathematical shape of the path, 
-    not an active position or visual viewing angle.
+    Retrieve geometric orbital parameters (eccentricity, inclination) 
+    for the specified command. Geometric orbital parameters describe 
+    the overall mathematical shape of the path, not an active position 
+    or visual viewing angle.
     """
 
     # Build the query parameters
@@ -269,20 +330,42 @@ async def elements_time_range(
 
     # Optional parameters
     if coord_type is not None:
-        query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
+        query_params["COORD_TYPE"] = format_to_single_quote_string(
+            coord_type.name.upper()
+        )
     if site_coord is not None:
-        query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
+        query_params["SITE_COORD"] = format_to_single_quote_string(
+            format_to_comma_sep_string(
+                site_coord
+            )
+        )
     if start_time is not None:
-        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(start_time))
+        query_params["START_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime_no_ms(
+                start_time
+            )
+        )
     if stop_time is not None:
-        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
+        query_params["STOP_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime_no_ms(
+                stop_time
+            )
+        )
     if step_size_amt is not None and step_size_unit is not None:
-        query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
+        query_params["STEP_SIZE"] = format_to_single_quote_string(
+            f"{step_size_amt} {step_size_unit.name}"
+        )
 
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
-            verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
+            response = await client.get(
+                JPL_HORIZONS_BASE_URL, 
+                params=query_params
+            )
+            verify_response(
+                response, 
+                JPL_HORIZONS_API_SUPPORT_VERSION
+            )
             return response.json()
         except Exception:
             return None
@@ -291,14 +374,42 @@ async def elements_time_range(
 
 @mcp.tool
 async def vectors_time_list(
-    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
-    time_list: Annotated[list[datetime] | None, Field(default=None, description="list up to 10,000 discrete output times as calendar dates, format as '%Y-%b-%d %H:%M:%S.%f'")],
+    command: Annotated[
+        str, 
+        Field(
+            description="Identifier of the target body to observe. " \
+            "Use lookup_object_id first to determine the ID number."
+        )
+    ],
+    coord_type: Annotated[
+        CoordTypeEnum | None, 
+        Field(
+            default=CoordTypeEnum.GEODETIC, 
+            description="selects type of user coordinates"
+        )
+    ],
+    site_coord: Annotated[
+        list[float], 
+        Field(
+            default=[0.0,0.0,0.0], 
+            description="list of 3 numbers representing the coordinates " \
+            "of observer in [longitude, latitude, elevation]"
+        )
+    ],
+    time_list: Annotated[
+        list[datetime] | None, 
+        Field(
+            default=None, 
+            description="list up to 10,000 discrete output times as " \
+            "calendar dates, format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
-    Retrieve raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
-    This treats the solar system like a massive grid, ignoring how things look from the ground.
+    Retrieve raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz)
+    for the specified command. This treats the solar system like a 
+    massive grid, ignoring how things look from the ground.
+    Use this command when searching for a specific time or list of times.
     """
 
     # Build the query parameters
@@ -314,17 +425,33 @@ async def vectors_time_list(
 
     # Optional parameters
     if coord_type is not None:
-        query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
+        query_params["COORD_TYPE"] = format_to_single_quote_string(
+            coord_type.name.upper()
+        )
     if site_coord is not None:
-        query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
+        query_params["SITE_COORD"] = format_to_single_quote_string(
+            format_to_comma_sep_string(
+                site_coord
+            )
+        )
     if time_list is not None:
-        query_params["TLIST"] = format_to_space_sep_string(map(format_to_single_quote_string, map(format_to_custom_datetime, time_list))) #format_escape_char_url(format_to_space_sep_string(map(format_to_single_quote_string, map(format_to_custom_datetime, time_list))))
+        query_params["TLIST"] = format_to_space_sep_string(
+            map(
+                format_to_single_quote_string, 
+                map(
+                    format_to_custom_datetime, time_list
+                )
+            )
+        )
 
     async with httpx.AsyncClient() as client:
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response = await client.get(
+                JPL_HORIZONS_BASE_URL, 
+                params=query_params
+            )
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
@@ -332,17 +459,64 @@ async def vectors_time_list(
         
 @mcp.tool
 async def vectors_time_range(
-    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
-    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
-    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
-    step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
-    step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
+    command: Annotated[
+        str, 
+        Field(
+            description="Identifier of the target body to observe. " \
+            "Use lookup_object_id first to determine the ID number."
+        )
+    ],
+    coord_type: Annotated[
+        CoordTypeEnum | None, 
+        Field(
+            default=CoordTypeEnum.GEODETIC, 
+            description="selects type of user coordinates"
+        )
+    ],
+    site_coord: Annotated[
+        list[float], 
+        Field(
+            default=[0.0,0.0,0.0], 
+            description="list of 3 numbers representing the coordinates " \
+            "of observer in [longitude, latitude, elevation]"
+        )
+    ],
+    start_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="specifies ephemeris start time, " \
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
+    stop_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="specifies ephemeris stop time, " \
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
+    step_size_amt: Annotated[
+        int | None, 
+        Field(
+            default=None, 
+            description="magnitude of ephemeris time step"
+        )
+    ],
+    step_size_unit: Annotated[
+        TimeStep | None, 
+        Field(
+            default=None, 
+            description="units of ephemeris time step"
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
-    Retrieve raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz) for the specified command.
-    This treats the solar system like a massive grid, ignoring how things look from the ground.
+    Retrieve raw 3D position and velocity metrics (X, Y, Z, Vx, Vy, Vz)
+    for the specified command. This treats the solar system like a massive grid, 
+    ignoring how things look from the ground. Use this command when searching
+    for a range of times at regular intervals.
     """
 
     # Build the query parameters
@@ -358,21 +532,40 @@ async def vectors_time_range(
 
     # Optional parameters
     if coord_type is not None:
-        query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
+        query_params["COORD_TYPE"] = format_to_single_quote_string(
+            coord_type.name.upper()
+        )
     if site_coord is not None:
-        query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
+        query_params["SITE_COORD"] = format_to_single_quote_string(
+            format_to_comma_sep_string(
+                site_coord
+            )
+        )
     if start_time is not None:
-        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(start_time))
+        query_params["START_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime_no_ms(
+                start_time
+            )
+        )
     if stop_time is not None:
-        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
+        query_params["STOP_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime_no_ms(
+                stop_time
+            )
+        )
     if step_size_amt is not None and step_size_unit is not None:
-        query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
+        query_params["STEP_SIZE"] = format_to_single_quote_string(
+            f"{step_size_amt} {step_size_unit.name}"
+        )
 
     async with httpx.AsyncClient() as client:
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response = await client.get(
+                JPL_HORIZONS_BASE_URL, 
+                params=query_params
+            )
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
