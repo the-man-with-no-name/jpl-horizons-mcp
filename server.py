@@ -575,18 +575,64 @@ async def vectors_time_range(
 
 @mcp.tool
 async def observer_request(
-    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    coord_type: Annotated[CoordTypeEnum | None, Field(default=CoordTypeEnum.GEODETIC, description="selects type of user coordinates")],
-    site_coord: Annotated[list[float], Field(default=[0.0,0.0,0.0], description="list of 3 numbers representing the coordinates of observer in [longitude, latitude, elevation]")],
-    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
-    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
-    step_size_amt: Annotated[int | None, Field(default=None, description="magnitude of ephemeris time step")],
-    step_size_unit: Annotated[TimeStep | None, Field(default=None, description="units of ephemeris time step")],
+    command: Annotated[
+        str, 
+        Field(
+            description="Identifier of the target body to observe. " \
+            "Use lookup_object_id first to determine the ID number."
+        )
+    ],
+    coord_type: Annotated[
+        CoordTypeEnum | None, 
+        Field(
+            default=CoordTypeEnum.GEODETIC, 
+            description="selects type of user coordinates"
+        )
+    ],
+    site_coord: Annotated[
+        list[float], 
+        Field(
+            default=[0.0,0.0,0.0], 
+            description="list of 3 numbers representing the coordinates " \
+            "of observer in [longitude, latitude, elevation]"
+        )
+    ],
+    start_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="specifies ephemeris start time, " \
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
+    stop_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="specifies ephemeris stop time, " \
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
+    step_size_amt: Annotated[
+        int | None, 
+        Field(
+            default=None, 
+            description="magnitude of ephemeris time step"
+        )
+    ],
+    step_size_unit: Annotated[
+        TimeStep | None, 
+        Field(
+            default=None, 
+            description="units of ephemeris time step"
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
-    Retrieve sky coordinates like Right Ascension, Declination, Azimuth, and Elevation. 
-    It tells you exactly where a telescope must point to see the object, accounting 
-    for factors like atmospheric refraction and Earth's rotation.
+    Retrieve sky coordinates like Right Ascension, Declination, 
+    Azimuth, and Elevation. It tells you exactly where a telescope 
+    must point to see the object, accounting for factors like 
+    atmospheric refraction and Earth's rotation.
     """
 
     # Build the query parameters
@@ -602,21 +648,40 @@ async def observer_request(
 
     # Optional parameters
     if coord_type is not None:
-        query_params["COORD_TYPE"] = format_to_single_quote_string(coord_type.name.upper())
+        query_params["COORD_TYPE"] = format_to_single_quote_string(
+            coord_type.name.upper()
+        )
     if site_coord is not None:
-        query_params["SITE_COORD"] = format_to_single_quote_string(format_to_comma_sep_string(site_coord))
+        query_params["SITE_COORD"] = format_to_single_quote_string(
+            format_to_comma_sep_string(
+                site_coord
+            )
+        )
     if start_time is not None:
-        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(start_time))
+        query_params["START_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime_no_ms(
+                start_time
+            )
+        )
     if stop_time is not None:
-        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime_no_ms(stop_time))
+        query_params["STOP_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime_no_ms(
+                stop_time
+            )
+        )
     if step_size_amt is not None and step_size_unit is not None:
-        query_params["STEP_SIZE"] = format_to_single_quote_string(f"{step_size_amt} {step_size_unit.name}")
+        query_params["STEP_SIZE"] = format_to_single_quote_string(
+            f"{step_size_amt} {step_size_unit.name}"
+        )
 
     async with httpx.AsyncClient() as client:
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response = await client.get(
+                JPL_HORIZONS_BASE_URL, 
+                params=query_params
+            )
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
@@ -626,13 +691,34 @@ async def observer_request(
 
 @mcp.tool
 async def spk_request(
-    command: Annotated[str, Field(description="Identifier of the target body to observe. Use lookup_object_id first to determine the ID number.")],
-    start_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris start time, format as '%Y-%b-%d %H:%M:%S.%f'")],
-    stop_time: Annotated[datetime | None, Field(default=None, description="specifies ephemeris stop time, format as '%Y-%b-%d %H:%M:%S.%f'")],
+    command: Annotated[
+        str, 
+        Field(
+            description="Identifier of the target body to observe. " \
+            "Use lookup_object_id first to determine the ID number."
+        )
+    ],
+    start_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="specifies ephemeris start time, " \
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
+    stop_time: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="specifies ephemeris stop time, " \
+            "format as '%Y-%b-%d %H:%M:%S.%f'"
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
     Download a time-continuous binary SPICE Kernel (SPK) file (.bsp) 
-    containing high-precision trajectory and orbit data for a specific solar system body.
+    containing high-precision trajectory and orbit data for a 
+    specific solar system body.
     """
 
     # Build the query parameters
@@ -646,15 +732,26 @@ async def spk_request(
 
     # Optional parameters
     if start_time is not None:
-        query_params["START_TIME"] = format_to_single_quote_string(format_to_custom_datetime(start_time))
+        query_params["START_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime(
+                start_time
+            )
+        )
     if stop_time is not None:
-        query_params["STOP_TIME"] = format_to_single_quote_string(format_to_custom_datetime(stop_time))
+        query_params["STOP_TIME"] = format_to_single_quote_string(
+            format_to_custom_datetime(
+                stop_time
+            )
+        )
 
     async with httpx.AsyncClient() as client:
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response = await client.get(
+                JPL_HORIZONS_BASE_URL, 
+                params=query_params
+            )
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
@@ -664,11 +761,53 @@ async def spk_request(
 
 @mcp.tool
 async def close_approach_request(
-    command: Annotated[str, Field(description="target search, selection, or enter user-input object mode")],
-    CaTableType: Annotated[CaTableTypeEnum | None, Field(default=CaTableTypeEnum.STANDARD, description="Extended close-approach tables include Julian Day numbers. B-plane information is also output if there is a covariance for the object stored in the system database or specified with user-input elements.")],
-    Tca3sgLimit: Annotated[int | None, Field(default=14400, description="maximum computed 3-sigma uncertainty in time of Earth close-approach")],
-    CalimSb: Annotated[float | None, Field(default=0.05, description="sets the spherical radius within which the nominal target must pass one of the perturbing asteroids (Ceres, Pallas, Vesta, etc.) to activate close-approach flagging")],
-    CalimPl: Annotated[Tuple[float, float, float, float, float, float, float, float, float, float] | None, Field(default=(0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 1.0, 1.0, 0.1, 0.003), description="sets the spherical radius within which the nominal target must pass one of the planets (or the Moon) to activate close-approach flagging, in the order: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto, and Moon")],
+    command: Annotated[
+        str, 
+        Field(
+            description="target search, selection, "
+            "or enter user-input object mode"
+        )
+    ],
+    CaTableType: Annotated[
+        CaTableTypeEnum | None, 
+        Field(
+            default=CaTableTypeEnum.STANDARD, 
+            description="Extended close-approach tables include " \
+            "Julian Day numbers. B-plane information is also output "
+            "if there is a covariance for the object stored in the " \
+            "system database or specified with user-input elements."
+        )
+    ],
+    Tca3sgLimit: Annotated[
+        int | None, 
+        Field(
+            default=14400, 
+            description="maximum computed 3-sigma uncertainty in " \
+            "time of Earth close-approach"
+        )
+    ],
+    CalimSb: Annotated[
+        float | None, 
+        Field(
+            default=0.05, 
+            description="sets the spherical radius within which " \
+            "the nominal target must pass one of the perturbing " \
+            "asteroids (Ceres, Pallas, Vesta, etc.) to activate " \
+            "close-approach flagging"
+        )
+    ],
+    CalimPl: Annotated[
+        list[float] | None, 
+        Field(
+            default=[0.1, 0.1, 0.1, 0.1, 1.0, 1.0, 1.0, 1.0, 0.1, 0.003], 
+            description="List of 10 float numbers." \
+            "Sets the spherical radius within which the " \
+            "nominal target must pass one of the planets (or the Moon) " \
+            "to activate close-approach flagging, in the order: " \
+            "Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, " \
+            "Neptune, Pluto, and Moon"
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
     Generate a discrete list of closest-encounter events. 
@@ -688,20 +827,31 @@ async def close_approach_request(
 
     # Optional parameters
     if CaTableType is not None:
-        query_params["CA_TABLE_TYPE"] = format_to_single_quote_string(CaTableType.name.upper())
+        query_params["CA_TABLE_TYPE"] = format_to_single_quote_string(
+            CaTableType.name.upper()
+        )
     if Tca3sgLimit is not None:
-        query_params["TCA3SG_LIMIT"] = format_to_single_quote_string(Tca3sgLimit)
+        query_params["TCA3SG_LIMIT"] = format_to_single_quote_string(
+            Tca3sgLimit
+        )
     if CalimSb is not None:
-        query_params["CALIM_SB"] = format_to_single_quote_string(CalimSb)
+        query_params["CALIM_SB"] = format_to_single_quote_string(
+            CalimSb
+        )
     if CalimPl is not None:
         AsStr = ",".join(map(str, CalimPl))
-        query_params["CALIM_PL"] = format_to_single_quote_string(AsStr)
+        query_params["CALIM_PL"] = format_to_single_quote_string(
+            AsStr
+        )
 
     async with httpx.AsyncClient() as client:
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_HORIZONS_BASE_URL, params=query_params)
+            response = await client.get(
+                JPL_HORIZONS_BASE_URL, 
+                params=query_params
+            )
             verify_response(response, JPL_HORIZONS_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
@@ -722,8 +872,26 @@ class CelestialObjectGroup(StrEnum):
 
 @mcp.tool
 async def lookup_object_id(
-    search_string: Annotated[str, Field(description="Search string containing object name, designation, SPK-ID, IAU number, or MPC packed-format designation")],
-    group: Annotated[CelestialObjectGroup | None, Field(default=None, description="Object group limiter, optionally use none or one: ast to limit search to asteroids only, com for comets only, pln for planets and dynamical points only, sct for spacecraft only, sat for natural satellites only, mb for major body index only, sb small-body index only")],
+    search_string: Annotated[
+        str, 
+        Field(
+            description="Search string containing object name, " \
+            "designation, SPK-ID, IAU number, or " \
+            "MPC packed-format designation"
+        )
+    ],
+    group: Annotated[
+        CelestialObjectGroup | None, 
+        Field(
+            default=None, 
+            description="Object group limiter, optionally use " \
+            "none or one: ast to limit search to asteroids only, " \
+            "com for comets only, pln for planets and dynamical " \
+            "points only, sct for spacecraft only, sat for natural " \
+            "satellites only, mb for major body index only, " \
+            "sb small-body index only"
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
     Process a user-specified name, designation, SPK-ID, IAU number, 
@@ -746,7 +914,10 @@ async def lookup_object_id(
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_HORIZONS_LOOKUP_BASE_URL, params=query_params)
+            response = await client.get(
+                JPL_HORIZONS_LOOKUP_BASE_URL, 
+                params=query_params
+            )
             verify_response(response, JPL_LOOKUP_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
@@ -785,21 +956,135 @@ def format_fireball_sort_component(sort_component: FireballSortComponent) -> str
 
 @mcp.tool
 async def fireball_event_lookup(
-    date_min: Annotated[datetime | None, Field(default=None, description="Exclude data earlier than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss")],
-    date_max: Annotated[datetime | None, Field(default=None, description="Exclude data later than this date YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss")],
-    energy_min: Annotated[float | None, Field(default=None, description="Exclude data with total-radiated-energy less than this positive value in joules * 10^10 (e.g., 0.3 = 0.3 * 10^10 joules)")],
-    energy_max: Annotated[float | None, Field(default=None, description="Exclude data with total-radiated-energy more than this positive value in joules * 10^10 (e.g., 0.3 = 0.3 * 10^10 joules)")],
-    impact_energy_min: Annotated[float | None, Field(default=None, description="exclude data with estimated impact energy less than this positive value in kilotons (kt) (e.g., 0.08 kt)")],
-    impact_energy_max: Annotated[float | None, Field(default=None, description="exclude data with estimated impact energy more than this positive value in kilotons (kt) (e.g., 0.08 kt)")],
-    altitude_min: Annotated[float | None, Field(default=None, description="exclude data from objects with an altitude less than this (e.g., 22 meaning objects smaller than this)")],
-    altitude_max: Annotated[float | None, Field(default=None, description="exclude data from objects with an altitude greater than this (e.g., 17.75 meaning objects smaller than this)")],
-    require_location: Annotated[bool | None, Field(default=None, description="location (latitude and longitude) required; when set true, exclude data without a location")],
-    require_altitude: Annotated[bool | None, Field(default=None, description="altitude required; when set true, exclude data without an altitude")],
-    require_velocity_component: Annotated[bool | None, Field(default=None, description="Entry velocity components required; when set true, exclude data without entry velocity components")],
-    velocity_component: Annotated[bool | None, Field(default=None, description="include entry velocity components")],
-    sort_component: Annotated[FireballSortComponent | None, Field(default=None, description="which field to sort the resulting data on; 'date', 'energy', 'impact-e', 'vel', or 'alt'")],
-    sort_order: Annotated[SortOrder | None, Field(default=None, description="sort the data in ascending or descending order")],
-    limit: Annotated[int | None, Field(default=None, description="limit data to the first N results (where N is the specified number and must be an integer value greater than zero)", ge=1)],
+    date_min: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="Exclude data earlier than this date " \
+            "YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss"
+        )
+    ],
+    date_max: Annotated[
+        datetime | None, 
+        Field(
+            default=None, 
+            description="Exclude data later than this date " \
+            "YYYY-MM-DD or date/time YYYY-MM-DDThh:mm:ss"
+        )
+    ],
+    energy_min: Annotated[
+        float | None, 
+        Field(
+            default=None, 
+            description="Exclude data with total-radiated-energy " \
+            "less than this positive value in joules * 10^10 "
+            "(e.g., 0.3 = 0.3 * 10^10 joules)"
+        )
+    ],
+    energy_max: Annotated[
+        float | None, 
+        Field(
+            default=None, 
+            description="Exclude data with total-radiated-energy " \
+            "more than this positive value in joules * 10^10 "
+            "(e.g., 0.3 = 0.3 * 10^10 joules)"
+        )
+    ],
+    impact_energy_min: Annotated[
+        float | None, 
+        Field(
+            default=None, 
+            description="exclude data with estimated impact energy " \
+            "less than this positive value in kilotons "
+            "(kt) (e.g., 0.08 kt)"
+        )
+    ],
+    impact_energy_max: Annotated[
+        float | None, 
+        Field(
+            default=None, 
+            description="exclude data with estimated impact energy " \
+            "more than this positive value in kilotons (kt) "
+            "(e.g., 0.08 kt)"
+        )
+    ],
+    altitude_min: Annotated[
+        float | None, 
+        Field(
+            default=None, 
+            description="exclude data from objects with an altitude " \
+            "less than this (e.g., 22 meaning objects smaller than this)"
+        )
+    ],
+    altitude_max: Annotated[
+        float | None, 
+        Field(
+            default=None, 
+            description="exclude data from objects with an altitude " \
+            "greater than this (e.g., 17.75 meaning objects " \
+            "smaller than this)"
+        )
+    ],
+    require_location: Annotated[
+        bool | None, 
+        Field(
+            default=None, 
+            description="location (latitude and longitude) " \
+            "required; when set true, exclude data without " \
+            "a location"
+        )
+    ],
+    require_altitude: Annotated[
+        bool | None, 
+        Field(
+            default=None, 
+            description="altitude required; when set true, " \
+            "exclude data without an altitude"
+        )
+    ],
+    require_velocity_component: Annotated[
+        bool | None, 
+        Field(
+            default=None, 
+            description="Entry velocity components required; " \
+            "when set true, exclude data without entry " \
+            "velocity components"
+        )
+    ],
+    velocity_component: Annotated[
+        bool | None, 
+        Field(
+            default=None, 
+            description="include entry velocity components"
+        )
+    ],
+    sort_component: Annotated[
+        FireballSortComponent | None, 
+        Field(
+            default=None, 
+            description="which field to sort the resulting " \
+            "data on; 'date', 'energy', 'impact-e', 'vel', "
+            "or 'alt'"
+        )
+    ],
+    sort_order: Annotated[
+        SortOrder | None, 
+        Field(
+            default=None, 
+            description="sort the data in ascending or " \
+            "descending order"
+        )
+    ],
+    limit: Annotated[
+        int | None, 
+        Field(
+            default=None, 
+            description="limit data to the first N results "
+            "(where N is the specified number and must be an " \
+            "integer value greater than zero)", 
+            ge=1
+        )
+    ],
 ) -> dict[str, Any] | None:
     """
     The fireball data API provides a method of requesting specific records 
@@ -846,7 +1131,10 @@ async def fireball_event_lookup(
         try:
             print("DEBUG: Tool query params:", file=sys.stderr)
             print(query_params, file=sys.stderr)
-            response = await client.get(JPL_FIREBALL_BASE_URL, params=query_params)
+            response = await client.get(
+                JPL_FIREBALL_BASE_URL, 
+                params=query_params
+            )
             verify_response(response, JPL_FIREBALL_API_SUPPORT_VERSION)
             return response.json()
         except Exception:
