@@ -3,15 +3,17 @@ import urllib.parse
 import sys
 import re
 from fastmcp import FastMCP
-from typing import Any, Tuple, Annotated
+from typing import Any, Annotated
 from pydantic import Field
 from enum import Enum, StrEnum, auto
 from datetime import datetime
 from functools import reduce
+from geopy.geocoders import Nominatim
+from geopy.adapters import AioHTTPAdapter
 
 """
 @TODO: Implement tools for:
-    x   - Horizons API
+    ✓   - Horizons API
     ✓       - Astronomical Data
     ✓       - Observer
     ✓       - Vectors
@@ -23,14 +25,14 @@ from functools import reduce
     ✓   - Horizons Lookup API
     ✓   - Fireball API
 
-@TODO: Fix handling of datetime params to enforce ISO 8601
 @TODO: Add result parsing, LLMs have a hard time parsing the raw text result,
         ephemeris is located between $$SOE and $$EOE tags and can request
         CSV_FORMAT=YES for easier parsing
-@TODO: Fix parsing of dates for vectors_time_list
+@TODO: Add coordinate lookup for entering locations as plain text
+@TODO: Add elevation lookup for entering locations as plain text
 """
 
-### API INFORMATION
+### JPL HORIZONS API INFORMATION
 
 JPL_FIREBALL_BASE_URL = "https://ssd-api.jpl.nasa.gov/fireball.api"
 JPL_HORIZONS_LOOKUP_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons_lookup.api"
@@ -38,6 +40,11 @@ JPL_HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 JPL_HORIZONS_API_SUPPORT_VERSION = "1.2"
 JPL_FIREBALL_API_SUPPORT_VERSION = "1.2"
 JPL_LOOKUP_API_SUPPORT_VERSION = "1.1"
+
+### OPEN TOPO DATA API INFORMATION
+
+OPEN_TOPO_BASE_URL = "https://api.opentopodata.org/v1"
+MAPZEN_DATA = "/mapzen"
 
 ### Exceptions
 
@@ -208,6 +215,38 @@ class DistanceUnits(StrEnum):
 ### MCP Definition
 
 mcp = FastMCP("jpl-horizons-mcp-server")
+
+### Geolocator
+
+@mcp.tool
+async def get_coordinates(
+    location: Annotated[
+        str,
+        Field(
+            description="Location to obtain the longitude" \
+            "and latitude coordinates."
+        )
+    ]
+) -> dict[str, float] | None:
+    """
+    Get the longitude and latitude coordinates of the 
+    provided plain text address or location.
+    """
+    async with Nominatim(
+        user_agent="jpl-horizons-mcp-geolocator",
+        adapter_factory=AioHTTPAdapter
+    ) as geolocator:
+        try:
+            coordinates = await geolocator.geocode(location) #type: ignore
+            if coordinates is not None:
+                return {
+                    "latitude": coordinates.latitude,
+                    "longitude": coordinates.longitude,
+                }
+            else:
+                raise Exception()
+        except Exception:
+            return None
 
 ### ASTRONOMICAL DATA
 

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "fastmcp>=3.4.4",
+    "geopy>=2.5.0",
     "httpx>=0.28.1",
     "mcp[cli]>=1.28.1",
     "pydantic>=2.13.4",
