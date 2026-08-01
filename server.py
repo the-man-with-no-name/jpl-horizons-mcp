@@ -77,9 +77,9 @@ def format_vec_corr(value: VecCorr) -> str:
 def format_to_custom_datetime(dt_obj: datetime) -> str:
     # %Y = Year, %b = Abbreviated month name (e.g., Jul), %d = Day
     # %H = Hour (24h), %M = Minute, %S = Second, %f = Microsecond
-    base_str = dt_obj.strftime("%Y-%b-%d %H:%M:%S.%f")
+    base_str = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
     # Slice off the last 3 digits of microseconds to enforce milliseconds (.fff)
-    return base_str[:-3]
+    return base_str
 
 def format_to_custom_datetime_no_ms(dt_obj: datetime) -> str:
     # %Y = Year, %m = Month, %d = Day
