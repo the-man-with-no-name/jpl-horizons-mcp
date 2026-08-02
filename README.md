@@ -1,4 +1,4 @@
-# Jet Propulsion Laboratory APIs
+# Jet Propulsion Laboratory Horizons MCP
 
 ## Overview 
 
