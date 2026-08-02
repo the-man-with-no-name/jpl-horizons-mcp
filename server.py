@@ -12,24 +12,10 @@ from geopy.geocoders import Nominatim
 from geopy.adapters import AioHTTPAdapter
 
 """
-@TODO: Implement tools for:
-    ✓   - Horizons API
-    ✓       - Astronomical Data
-    ✓       - Observer
-    ✓       - Vectors
-    ✓           - time list
-    ✓          - time range
-    ✓       - Elements
-    ✓       - Spk
-    ✓       - Approach
-    ✓   - Horizons Lookup API
-    ✓   - Fireball API
-
 @TODO: Add result parsing, LLMs have a hard time parsing the raw text result,
         ephemeris is located between $$SOE and $$EOE tags and can request
         CSV_FORMAT=YES for easier parsing
-@TODO: Add coordinate lookup for entering locations as plain text
-@TODO: Add elevation lookup for entering locations as plain text
+@TODO: Add parameters to enter locations as plain text instead of as coordinates.
 """
 
 ### JPL HORIZONS API INFORMATION
