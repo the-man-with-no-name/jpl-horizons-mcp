@@ -238,6 +238,7 @@ async def get_elevation_at_coordinates(
     """
     Get the elevation at a coordinate location on earth.
     Coordinate is latitude and longitude.
+    Returned value is in meters above sea level.
     """
 
     query_params = {
@@ -362,7 +363,7 @@ async def elements_time_range(
         Field(
             default=[0.0,0.0,0.0], 
             description="List of 3 numbers representing the coordinates "
-            "of the observer as [longitude, latitude, elevation]"
+            "of the observer as [longitude, latitude, elevation]."
         )
     ],
     start_time: Annotated[
