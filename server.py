@@ -216,6 +216,53 @@ class DistanceUnits(StrEnum):
 
 mcp = FastMCP("jpl-horizons-mcp-server")
 
+### Elevation 
+
+@mcp.tool
+async def get_elevation_at_coordinates(
+    latitude: Annotated[
+        float,
+        Field(
+            description="Latitude of location to obtain " \
+            "elevation."
+        )
+    ],
+    longitude: Annotated[
+        float,
+        Field(
+            description="Longitude of location to obtain" \
+            "elevation."
+        )
+    ],
+) -> float | None:
+    """
+    Get the elevation at a coordinate location on earth.
+    Coordinate is latitude and longitude.
+    """
+
+    query_params = {
+        "locations": f"{latitude,longitude}"
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            print("DEBUG: Tool query params:", file=sys.stderr)
+            print(query_params, file=sys.stderr)
+            response = await client.get(
+                OPEN_TOPO_BASE_URL + MAPZEN_DATA, 
+                params=query_params
+            )
+            print("DEBUG: Tool response payload structure:", file=sys.stderr)
+            print(response.json(), file=sys.stderr)
+            result = response.json()
+            if "results" in result:
+                for location in result["results"]:
+                    if "elevation" in location:
+                        return location["elevation"]
+            return None
+        except Exception:
+            return None
+
 ### Geolocator
 
 @mcp.tool
