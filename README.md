@@ -1,10 +1,10 @@
 # Jet Propulsion Laboratory Horizons MCP
 
-JPL Horizons MCP to access ephemeris data for astronomical objects.
+[JPL Horizons](https://ssd-api.jpl.nasa.gov/doc/horizons.html) MCP to access ephemeris data for astronomical objects.
 
 ## Overview 
 
-Model Context Protocol (MCP) implementation of some the JPL APIs, including:
+Model Context Protocol (MCP) implementation of some the APIs, including:
 
 * Horizons Lookup API: Process a user-specified name, designation, SPK-ID, IAU number, MPC packed designation, or other historical alias, and return in a standardized format its primary synonyms and all aliases recognized by JPL’s Horizons system as being linked to publicly available trajectory data. This API is intended for telescope schedulers and others who need to correlate one of the many object labels typically possible with Horizons output and other sources.
 
