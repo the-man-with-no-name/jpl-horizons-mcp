@@ -241,7 +241,7 @@ async def get_elevation_at_coordinates(
     """
 
     query_params = {
-        "locations": f"{latitude,longitude}"
+        "locations": f"{latitude},{longitude}"
     }
 
     async with httpx.AsyncClient() as client:
