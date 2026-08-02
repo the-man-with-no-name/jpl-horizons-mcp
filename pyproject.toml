@@ -1,7 +1,10 @@
 [project]
 name = "jpl-horizons-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "Access the JPL Horizons tools through Model Context Protocol."
+authors = [
+    {name = "Ryan DeMuse"}
+]
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
