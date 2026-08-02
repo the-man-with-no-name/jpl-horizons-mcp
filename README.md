@@ -1,5 +1,7 @@
 # Jet Propulsion Laboratory Horizons MCP
 
+JPL Horizons MCP to access ephemeris data for astronomical objects.
+
 ## Overview 
 
 Model Context Protocol (MCP) implementation of some the JPL APIs, including:
